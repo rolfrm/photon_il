@@ -76,6 +76,7 @@ namespace PhotonIl
 			gen.variableName.Get (exprs [1]);
 
 		}*/
+        
 
 		static public IlGen Run2(){
 			var gen = new IlGen ();
@@ -86,16 +87,34 @@ namespace PhotonIl
 			var typeId = gen.DefineStruct (gen.DefineVariable(gen.StringType, null , "vec2i"), 
 				sarg1 = gen.DefineArgument ("x", gen.I32Type), 
 				sarg2 = gen.DefineArgument ("y", gen.I32Type));
-			var v1 = gen.DefineVariable (typeId, "vec2Test");
-			var fcnType = gen.GetFunctionType (typeId, typeId, typeId);
+
+            //dynamic test = Activator.CreateInstance(gen.getNetType(typeId));
+            //test.X = test.X + test.Y;
+
+            var bareStruct = gen.DefineFunction("<>", gen.GetFunctionType(typeId));
+            var body1 = gen.DefineFcnBody(bareStruct);
+            gen.AddSubExpression(body1, gen.GetStructConstructor(typeId));
+            var method = gen.GenerateIL(bareStruct);
+            var blank = method.Invoke(null, null);
+
+
+            var v1 = gen.DefineVariable (typeId, "vec2Test");
+            var fcnType = gen.GetFunctionType(typeId); ;//, typeId, typeId);
 			Uid arg1, arg2;
-			var addvec2 = gen.DefineFunction ("+", fcnType, arg1 = gen.DefineArgument("a"), arg2 = gen.DefineArgument("b"));
+            var addvec2 = gen.DefineFunction("+", fcnType);//, arg1 = gen.DefineArgument("a"), arg2 = gen.DefineArgument("b"));
 			var subexpr1 = gen.DefineFcnBody (addvec2);
 			Uid xlocal, ylocal;
-			gen.AddSubExpression (subexpr1, sub (gen.Progn, 
-				xlocal = gen.Let ("x", sub (gen.Add, sub (gen.GetStructAccessor (sarg1), arg1), sub (gen.GetStructAccessor (sarg1), arg2))),
-				ylocal = gen.Let ("y", sub (gen.Add, sub (gen.GetStructAccessor (sarg2), arg1), sub (gen.GetStructAccessor (sarg2), arg2))),
-				sub (gen.GetStructConstructor (typeId), xlocal, ylocal)));
+            Uid sym = gen.Sym("x");
+            gen.AddSubExpression(subexpr1,gen.Progn, 
+                sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId))),
+                sym);
+            
+			/*gen.AddSubExpression (subexpr1, sub (gen.Progn, 
+				xlocal = sub(gen.Let, gen.Sym("x"), sub (gen.Add, sub (gen.GetStructAccessor (sarg1), arg1), sub (gen.GetStructAccessor (sarg1), arg2))),
+				ylocal = sub(gen.Let, gen.Sym("y"), sub (gen.Add, sub (gen.GetStructAccessor (sarg2), arg1), sub (gen.GetStructAccessor (sarg2), arg2))),
+				sub (gen.GetStructConstructor (typeId), xlocal, ylocal)));*/
+            var m = gen.GenerateIL(addvec2);
+            var blank2 = m.Invoke(null, null);
 			return gen;
 		}
 
@@ -128,7 +147,8 @@ namespace PhotonIl
 			gen.AddSubExpression (expr2, f1);
 			gen.AddSubExpression (expr2, expr);
 
-			gen.GenerateIL (expr2);
+			var result = gen.GenerateIL (expr2);
+            result.Invoke(null, null);
 			return gen;
 		}
 	}

@@ -60,14 +60,14 @@ public partial class MainWindow: Gtk.Window
 				add(vb, e);
 		};
 		// now recursively generate HBoxes and VBoxes to match the ASt.
-		foreach (var elem in rootelems)
-			add (fixed1, elem);
+		//foreach (var elem in rootelems)
+		//	add (fixed1, elem);
 		ShowAll ();
 	}
 
 	public MainWindow () : base (Gtk.WindowType.Toplevel)
 	{
-		Build ();
+		//Build ();
 		// Container child GtkScrolledWindow.Gtk.Container+ContainerChild
 		ShowAll ();
 	}
@@ -76,14 +76,14 @@ public partial class MainWindow: Gtk.Window
 	void textViewKeyPress(object o, KeyPressEventArgs args){
 		if (args.Event.Key == Gdk.Key.Return) {
 			(o as TextView).HasFocus = false;
-			(o as TextView).ModifyText (StateType.Selected);
+			//(o as TextView).ModifyText (StateType.Selected);
 			args.RetVal = true;
 		}
 	}
 
 	protected void OnDeleteEvent (object sender, DeleteEventArgs a)
 	{
-		Application.Quit ();
+		//Application.Quit ();
 		a.RetVal = true;
 	}
 }
