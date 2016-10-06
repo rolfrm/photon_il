@@ -123,7 +123,93 @@ namespace PhotonIl
 			return gen;
 		}
 
-		static public IlGen Run ()
+        static public void Test1()
+        {
+            var gen = new IlGen();
+            var sub = gen.Sub;
+            Uid sarg1, sarg2;
+            var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),
+                sarg1 = gen.DefineArgument("x", gen.I32Type),
+                sarg2 = gen.DefineArgument("y", gen.I32Type));
+            
+            var v1 = gen.DefineVariable(typeId, "vec2Test");
+            var fcnType = gen.GetFunctionType(gen.I32Type);
+            var addvec2 = gen.DefineFunction("plus", fcnType);
+            var subexpr1 = gen.DefineFcnBody(addvec2);
+            Uid sym = gen.Sym("x");
+            gen.AddSubExpression(subexpr1, gen.Progn
+                ,sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
+                ,sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineVariable(gen.I32Type, null, 5))
+                ,gen.GetStructAccessor(sarg1, sym)
+                );
+            var m = gen.GenerateIL(addvec2);
+            var blank2 = (int)m.Invoke(null, null);
+            Assert.AreEqual(blank2, 5);
+        }
+
+        static public void Test2()
+        {
+            var gen = new IlGen();
+            var sub = gen.Sub;
+            Uid sarg1, sarg2;
+            var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),
+                sarg1 = gen.DefineArgument("x", gen.I32Type),
+                sarg2 = gen.DefineArgument("y", gen.I32Type));
+
+            var v1 = gen.DefineVariable(typeId, "vec2Test");
+            var fcnType = gen.GetFunctionType(gen.I32Type);
+            var addvec2 = gen.DefineFunction("plus", fcnType);
+            var subexpr1 = gen.DefineFcnBody(addvec2);
+            Uid sym = gen.Sym("x");
+            gen.AddSubExpression(subexpr1, gen.Progn
+                , sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
+                , sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineVariable(gen.I32Type, null, 5))
+                , sub(gen.Set, gen.GetStructAccessor(sarg2, sym), gen.DefineVariable(gen.I32Type, null, 13))
+                , sub(gen.Add, gen.GetStructAccessor(sarg1, sym), gen.GetStructAccessor(sarg2, sym))
+                );
+            var m = gen.GenerateIL(addvec2);
+            var blank2 = (int)m.Invoke(null, null);
+            Assert.AreEqual(blank2, 5 + 13);
+        }
+
+        static public void Test3()
+        {
+            var gen = new IlGen();
+            var sub = gen.Sub;
+            Uid sarg1, sarg2;
+            var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),
+                sarg1 = gen.DefineArgument("x", gen.I32Type),
+                sarg2 = gen.DefineArgument("y", gen.I32Type));
+
+            Uid f1 = Uid.Default;
+            {
+                var fcnType = gen.GetFunctionType(gen.I32Type);
+                var addvec2 = gen.DefineFunction("plus", fcnType);
+                var subexpr1 = gen.DefineFcnBody(addvec2);
+                Uid sym = gen.Sym("x");
+                gen.AddSubExpression(subexpr1, gen.Progn
+                    , sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
+                    , sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineVariable(gen.I32Type, null, 5))
+                    , sub(gen.Set, gen.GetStructAccessor(sarg2, sym), gen.DefineVariable(gen.I32Type, null, 13))
+                    , sub(gen.Add, gen.GetStructAccessor(sarg1, sym), gen.GetStructAccessor(sarg2, sym))
+                    );
+                var m = gen.GenerateIL(addvec2);
+                var blank2 = (int)m.Invoke(null, null);
+                Assert.AreEqual(blank2, 5 + 13);
+                f1 = addvec2;
+            }
+            {
+                var fcnType = gen.GetFunctionType(gen.I32Type);
+                var addvec2 = gen.DefineFunction("f", fcnType);
+                var subexpr1 = gen.DefineFcnBody(addvec2);
+                gen.AddSubExpression(subexpr1, gen.Add, sub(f1), sub(f1), sub(f1), sub(f1));
+                var m = gen.GenerateIL(addvec2);
+                var blank2 = (int)m.Invoke(null, null);
+                Assert.AreEqual(blank2, 4 * (5 + 13));
+            }
+        }
+
+        static public IlGen Run ()
 		{
 			var gen = new IlGen ();
 			var v1 = gen.DefineVariable (gen.U8Type, "test", (byte)55);
@@ -157,5 +243,21 @@ namespace PhotonIl
 			return gen;
 		}
 	}
+
+    public class Assert
+    {
+        public class AssertionFailedException : Exception
+        {
+            public AssertionFailedException() : base("Assertion failed")
+            {
+
+            }
+        }
+        public static void AreEqual<T>(T actual, T expected)
+        {
+            if(!actual.Equals(expected))
+                throw new AssertionFailedException();
+        }
+    }
 }
 

@@ -7,6 +7,11 @@ namespace PhotonIl
 	{
 		public static void Main (string[] args)
 		{
+            IlGenTest.Test3();
+            return;
+            IlGenTest.Test1();
+            IlGenTest.Test2();
+            return;
 			IlGenTest.Run2 ();
             return;
 			var gen = IlGenTest.Run ();

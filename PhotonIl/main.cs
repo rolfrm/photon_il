@@ -238,9 +238,13 @@ namespace PhotonIl
         public StackLocal<Uid> ExpectedType = new StackLocal<Uid>();
         public Uid GenCall(Uid expr, ILGenerator il)
         {
+            
             var subexprs = SubExpressions.Get(expr);
             var function = subexprs[0];
-
+            if (FunctionInvocation.Get(function) == null)
+            {
+                GenerateIL(function);
+            }
             var mt = FunctionType.Get(function);
             var args = FunctionArgTypes.Get(mt);
             var returnType = FunctionReturnType.Get(mt);
@@ -296,20 +300,14 @@ namespace PhotonIl
                 var ilgen = fn.GetILGenerator();
 
                 using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                {
                     GenSubCall(body, ilgen);
-                }
                 ilgen.Emit(OpCodes.Ret);
                 Type t = tb.CreateType();
                 fn.InitLocals = true;
-                
-                //Action x;
                 module.CreateGlobalFunctions();
-                
-                asmBuild.Save("DynAsm.dll");
-                var assembly = Assembly.LoadFrom ("DynAsm.dll");
-                var extypes = assembly.GetExportedTypes ();
-                return t.GetMethod(fn.Name);
+                var m = t.GetMethod(fn.Name);
+                FunctionInvocation.Add(expr, m);
+                return m;
             }
             else
             {
@@ -388,6 +386,7 @@ namespace PhotonIl
             var memberid = sexprs[2];
             FieldInfo field = gen.getNetFieldInfo(memberid, structid);
             Uid valueExpr = gen.SetExprs.Get(expr);
+            
             if (valueExpr != Uid.Default)
             {
                 gen.SetExprs.Remove(expr);
@@ -406,7 +405,8 @@ namespace PhotonIl
                 gen.GenSubCall(sexprs[3], il);
                 il.Emit(OpCodes.Ldfld, field);
             }
-            return expr;
+
+            return gen.argumentType.Get(memberid);
         }
 
 
@@ -521,7 +521,37 @@ namespace PhotonIl
             return Uid.Default;
         }
 
-        public readonly Uid Add = Uid.CreateNew();
+        Uid _add;
+        public Uid Add
+        {
+            get
+            {
+                if(_add == Uid.Default)
+                {
+                    _add = Uid.CreateNew();
+                    Macros.Add(_add, genAdd);
+                }
+                return _add;
+            }
+        }
+        public Uid genAdd(Uid expr, ILGenerator il, IlGen gen)
+        {
+            var subs = gen.SubExpressions.Get(expr);
+            if (subs.Length < 2)
+                throw new Exception("Invalid number of arguments for +");
+            Uid type = GenSubCall(subs[1], il);
+            for(int i = 2; i < subs.Length; i++)
+            {
+                Uid t2 = GenSubCall(subs[i], il);
+                if (type != t2)
+                    throw new Exception("Invalid type for +");
+                il.Emit(OpCodes.Add);
+            }
+            return type;
+
+        }
+
+
         Uid _let;
         public Uid Let {
             get
