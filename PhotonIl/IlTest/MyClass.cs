@@ -36,6 +36,14 @@ namespace IlTest
 			int y = 10;
 			Test2(Op(x,y));
 		}
+
+        public static void Test4()
+        {
+            MyStruct s = new MyStruct();
+            s.X = 5;
+            s.Y = 10;
+            Console.WriteLine("{0} {1}", s.X, s.Y);
+        }
 	}
 }
 

@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-
+using System.Runtime.InteropServices;
 
 namespace PhotonIl
 {
@@ -88,26 +88,31 @@ namespace PhotonIl
 				sarg1 = gen.DefineArgument ("x", gen.I32Type), 
 				sarg2 = gen.DefineArgument ("y", gen.I32Type));
 
+            var tp2 = gen.getNetType(typeId);
+            var size = Marshal.SizeOf(tp2);
+
             //dynamic test = Activator.CreateInstance(gen.getNetType(typeId));
             //test.X = test.X + test.Y;
 
             var bareStruct = gen.DefineFunction("<>", gen.GetFunctionType(typeId));
             var body1 = gen.DefineFcnBody(bareStruct);
             gen.AddSubExpression(body1, gen.GetStructConstructor(typeId));
-            var method = gen.GenerateIL(bareStruct);
-            var blank = method.Invoke(null, null);
+            //var method = gen.GenerateIL(bareStruct);
+            //var blank = method.Invoke(null, null);
 
 
             var v1 = gen.DefineVariable (typeId, "vec2Test");
-            var fcnType = gen.GetFunctionType(typeId); ;//, typeId, typeId);
+            var fcnType = gen.GetFunctionType(gen.I32Type); ;//, typeId, typeId);
 			Uid arg1, arg2;
-            var addvec2 = gen.DefineFunction("+", fcnType);//, arg1 = gen.DefineArgument("a"), arg2 = gen.DefineArgument("b"));
+            var addvec2 = gen.DefineFunction("plus", fcnType);//, arg1 = gen.DefineArgument("a"), arg2 = gen.DefineArgument("b"));
 			var subexpr1 = gen.DefineFcnBody (addvec2);
 			Uid xlocal, ylocal;
             Uid sym = gen.Sym("x");
-            gen.AddSubExpression(subexpr1,gen.Progn, 
+            gen.AddSubExpression(subexpr1, gen.Progn,
                 sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId))),
-                sym);
+                sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineVariable(gen.I32Type, null, 5))
+                ,gen.GetStructAccessor(sarg2, sym)
+                );
             
 			/*gen.AddSubExpression (subexpr1, sub (gen.Progn, 
 				xlocal = sub(gen.Let, gen.Sym("x"), sub (gen.Add, sub (gen.GetStructAccessor (sarg1), arg1), sub (gen.GetStructAccessor (sarg1), arg2))),

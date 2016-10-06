@@ -8,7 +8,7 @@ namespace PhotonIl
 		public static void Main (string[] args)
 		{
 			IlGenTest.Run2 ();
-			
+            return;
 			var gen = IlGenTest.Run ();
 			//eturn;
 			Application.Init ();

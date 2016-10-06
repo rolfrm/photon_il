@@ -169,7 +169,15 @@ namespace PhotonIl
             if (localSymbols.Value.ContainsKey(expr))
             {
                 var local = localSymbols.Value.Get(expr);
-                il.Emit(OpCodes.Ldloc, local.Local);
+                if (ReferenceReq.Contains(expr))
+                {
+                    il.Emit(OpCodes.Ldloca_S, local.Local);
+                    ReferenceReq.Remove(expr);
+                }
+                else
+                {
+                    il.Emit(OpCodes.Ldloc, local.Local);
+                }
                 return local.TypeId;
             }
             var subexprs = SubExpressions.Get(expr);
@@ -266,17 +274,15 @@ namespace PhotonIl
             AssemblyBuilder a = AppDomain.CurrentDomain.DefineDynamicAssembly(
                 new AssemblyName("myasm"),
                 AssemblyBuilderAccess.RunAndSave);
-            return a.DefineDynamicModule("myasm.dll");
+            return a.DefineDynamicModule("myasm.dll", "DynAsm2.mod");
         }
 
         public MethodInfo GenerateIL(Uid expr)
         {
-
-            AssemblyBuilder a = AppDomain.CurrentDomain.DefineDynamicAssembly(
-                new AssemblyName("myasm"),
-                AssemblyBuilderAccess.RunAndSave);
-            var module = a.DefineDynamicModule("myasm");
-            var tb = module.DefineType("mytype", TypeAttributes.Class | TypeAttributes.Public);
+            AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly(
+                new AssemblyName("DynAsm"),AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory());
+            var module = asmBuild.DefineDynamicModule("DynMod", "DynMod.mod");
+            var tb = module.DefineType("MyType", TypeAttributes.Class | TypeAttributes.Public);
 
             var name = FunctionName.Get(expr) ?? "_";
             var body = functionBody.Get(expr);
@@ -284,7 +290,7 @@ namespace PhotonIl
             if (body != Uid.Default)
             {
 
-                var fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
+                MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
                     getNetType(FunctionReturnType.Get(ftype)),
                     FunctionArgTypes.Get(ftype).Select(getNetType).ToArray());
                 var ilgen = fn.GetILGenerator();
@@ -295,13 +301,15 @@ namespace PhotonIl
                 }
                 ilgen.Emit(OpCodes.Ret);
                 Type t = tb.CreateType();
-                var runm = t.GetMethod(name);
+                fn.InitLocals = true;
+                
                 //Action x;
                 module.CreateGlobalFunctions();
-                //a.Save("myasm.dll");
-                //var assembly = Assembly.LoadFrom ("myasm.dll");
-                //var extypes = assembly.GetExportedTypes ();
-                return runm;
+                
+                asmBuild.Save("DynAsm.dll");
+                var assembly = Assembly.LoadFrom ("DynAsm.dll");
+                var extypes = assembly.GetExportedTypes ();
+                return t.GetMethod(fn.Name);
             }
             else
             {
@@ -360,9 +368,47 @@ namespace PhotonIl
             return id;
         }
 
-        public Uid GetStructAccessor(Uid member) {
-            return Uid.CreateNew();
+        Uid getStructAccess;
+        public Uid GetStructAccessor(Uid member, Uid structexpr) {
+            if (getStructAccess == Uid.Default)
+            {
+                getStructAccess = Uid.CreateNew();
+                Macros.Add(getStructAccess, genStructAccess);
+            }
+            var structid = structMembers.Entries.FirstOrDefault(e => e.Value.Contains(member)).Key;
+            return Sub(getStructAccess, structid, member, structexpr);
         }
+
+        HashSet<Uid> ReferenceReq = new HashSet<Uid>();
+
+        public static Uid genStructAccess(Uid expr, ILGenerator il, IlGen gen)
+        {
+            var sexprs = gen.SubExpressions.Get(expr);
+            var structid = sexprs[1];
+            var memberid = sexprs[2];
+            FieldInfo field = gen.getNetFieldInfo(memberid, structid);
+            Uid valueExpr = gen.SetExprs.Get(expr);
+            if (valueExpr != Uid.Default)
+            {
+                gen.SetExprs.Remove(expr);
+                gen.ReferenceReq.Add(sexprs[3]);
+                gen.GenSubCall(sexprs[3], il);
+                if (gen.ReferenceReq.Contains(sexprs[3]))
+                    throw new Exception("Unable to access right valaue");
+                il.Emit(OpCodes.Dup);
+                gen.GenSubCall(valueExpr, il);
+                il.Emit(OpCodes.Stfld, field);
+                il.Emit(OpCodes.Ldfld, field);
+                
+            }
+            else
+            {
+                gen.GenSubCall(sexprs[3], il);
+                il.Emit(OpCodes.Ldfld, field);
+            }
+            return expr;
+        }
+
 
         Uid InitStruct;
         public static Uid GenStruct(Uid expr, ILGenerator il, IlGen gen)
@@ -383,6 +429,7 @@ namespace PhotonIl
 
         void GenStructConstructorIl(ILGenerator il, Uid structid) {
             il.Emit(OpCodes.Ldloc, il.DeclareLocal(getNetType(structid)));
+            //il.Emit(OpCodes.Initobj, getNetType(structid))
         }
 
         void GenStructAccessorIl(ILGenerator il, Uid structid, Uid member) {
@@ -391,13 +438,16 @@ namespace PhotonIl
 
         FieldInfo getNetFieldInfo(Uid member, Uid structType)
         {
-            throw new NotImplementedException();
+            var args = structMembers.Get(structType);
+            var idx = Array.IndexOf(args, member);
+            return getNetType(structType).GetFields()[idx];
         }
 
         Uid GenStructAccess(ILGenerator il, Uid[] exprs) {
             Uid member = exprs[0];
             Uid structExpr = exprs[0];
             Uid structType = GenCall(structExpr, il);
+            
             il.Emit(OpCodes.Ldfld, getNetFieldInfo(member, structType));
             return argumentType.Get(member);
         }
@@ -485,6 +535,40 @@ namespace PhotonIl
             }
         }
 
+        Uid _set;
+        public Uid Set
+        {
+            get
+            {
+                if(_set == Uid.Default)
+                {
+                    _set = Uid.CreateNew();
+                    Macros.Add(_set, genSet);
+                }
+                return _set;
+            }
+        }
+
+        //(setf (member-x sym) 5)
+        // vs
+        //(set-member-x sym 5)
+        // Setf needs to communicate with whatever the inner form is for that
+        // to work. 
+        public Dict<Uid,Uid> SetExprs = new Dict<Uid,Uid>();
+        public Uid genSet(Uid expr, ILGenerator il, IlGen gen)
+        {
+            var exprs = SubExpressions.Get(expr);
+            // set, accessor, value
+            //Uid typeid = GenSubCall(exprs[2], il);
+            //il.Emit(OpCodes.Dup);
+            SetExprs.Add(exprs[1],exprs[2]);
+            Uid typeid2 = GenSubCall(exprs[1], il);
+            if (SetExprs.ContainsKey(exprs[1]))
+                throw new Exception("Sub expression does not support set");
+            //SetExprs.Remove(exprs[1]);
+            return typeid2;
+        }
+
         struct LocalSymData
         {
             public LocalBuilder Local;
@@ -502,8 +586,6 @@ namespace PhotonIl
             il.Emit(OpCodes.Dup);
             il.Emit(OpCodes.Stloc, local);
             localSymbols.Value.Add(exprs[1], new LocalSymData { Local = local, TypeId = type });
-
-
             return type;
         }
 
