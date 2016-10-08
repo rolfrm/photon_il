@@ -157,6 +157,33 @@ namespace PhotonIl
             return true;
         }
 
+		Dict<Uid,FieldInfo> variableItems = new Dict<Uid, FieldInfo>();
+
+		FieldInfo getVariable(Uid variableId)
+		{
+			FieldInfo v = variableItems.Get (variableId);
+			if (v == null) {
+				var typeid = variableType.Get (variableId);
+				if (typeid == Uid.Default)
+					return null;
+				
+				var name = variableName.Get (variableId) ?? "AnonVariable";
+				var val = variableValue.Get (variableId);
+				var mod = newModule ();
+				var tp = mod.DefineType ("no-name");
+
+				tp.DefineField (name, getNetType (typeid), FieldAttributes.Public | FieldAttributes.Static); 
+				var objtype = tp.CreateType ();
+				v = objtype.GetField (name, BindingFlags.Public | BindingFlags.Static);
+
+				if(val != null)
+					v.SetValue(null, val);
+				variableItems.Add (variableId, v);
+			}
+			return v;
+		}
+			
+
         public Uid GenSubCall(Uid expr, ILGenerator il)
         {
             {
@@ -183,17 +210,12 @@ namespace PhotonIl
             }
 
             {
-                var variable = variableType.Get(expr);
-                //il.Emit(OpCodes.Ld)
-                /*if (constantType != Uid.Default)
-                {
-                    if (this.types.Get(constantType) == Types.Primitive)
-                    {
-                        int size = this.type_size.Get(constantType);
-                        bool isfloat = this.is_floating_point.Get(constantType);
-                    }
-
-                }*/
+				var variableMember = getVariable (expr);
+				if (variableMember != null) {
+					il.Emit (OpCodes.Ldnull);
+					il.Emit (OpCodes.Ldfld, variableMember);
+					return variableType.Get (expr);
+				}
             }
             
             if (localSymbols.Value.ContainsKey(expr))
@@ -506,10 +528,9 @@ namespace PhotonIl
 
         Dict<Uid, Uid> functionBody = new Dict<Uid, Uid>();
 
-        public Uid DefineFcnBody(Uid fcn) {
-            var fcnBody = Uid.CreateNew();
-            functionBody.Add(fcn, fcnBody);
-            return fcnBody;
+		public void DefineFcnBody(Uid fcn, Uid body) 
+		{
+            functionBody.Add(fcn, body);
         }
 
         Uid _progn;
