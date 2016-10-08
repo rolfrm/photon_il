@@ -163,8 +163,8 @@ namespace PhotonIl
             Uid sym = gen.Sym("x");
             gen.AddSubExpression(subexpr1, gen.Progn
                 , sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
-                , sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineVariable(gen.I32Type, null, 5))
-                , sub(gen.Set, gen.GetStructAccessor(sarg2, sym), gen.DefineVariable(gen.I32Type, null, 13))
+                , sub(gen.Set, gen.GetStructAccessor(sarg1, sym), gen.DefineConstant(gen.I32Type, 5))
+                , sub(gen.Set, gen.GetStructAccessor(sarg2, sym), gen.DefineConstant(gen.I32Type, 13))
                 , sub(gen.Add, gen.GetStructAccessor(sarg1, sym), gen.GetStructAccessor(sarg2, sym))
                 );
             var m = gen.GenerateIL(addvec2);

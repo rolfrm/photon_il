@@ -141,6 +141,17 @@ namespace PhotonIl
             return varid;
         }
 
+        public readonly Dict<Uid, object> ConstantValue = new Dict<Uid, object>();
+        public readonly Dict<Uid, Uid> ConstantType = new Dict<Uid, Uid>();
+        public Uid DefineConstant(Uid type, object value, string name = null)
+        {
+            var s = Sym(name);
+            ConstantType.Add(s, type);
+            ConstantValue.Add(s, value);
+            return s;
+        }
+
+
         bool IsExpression(Uid id)
         {
             return true;
@@ -148,24 +159,43 @@ namespace PhotonIl
 
         public Uid GenSubCall(Uid expr, ILGenerator il)
         {
-            var variable = variableType.Get(expr);
-            if (variable != Uid.Default) {
-                if (this.types.Get(variable) == Types.Primitive) {
-                    int size = this.type_size.Get(variable);
-                    bool isfloat = this.is_floating_point.Get(variable);
-                    if (isfloat && size == 4)
-                        il.Emit(OpCodes.Ldc_R4, (float)Convert.ChangeType(this.variableValue.Get(expr), typeof(float)));
-                    else if (isfloat && size == 8)
-                        il.Emit(OpCodes.Ldc_R8, (double)Convert.ChangeType(this.variableValue.Get(expr), typeof(double)));
-                    if (size <= 4)
-                        il.Emit(OpCodes.Ldc_I4, (int)Convert.ChangeType(this.variableValue.Get(expr), typeof(int)));
-                    else if (size == 8)
-                        il.Emit(OpCodes.Ldc_I8, (long)Convert.ChangeType(this.variableValue.Get(expr), typeof(long)));
-                    else
-                        throw new Exception("Cannot load type");
-                    return variable;
+            {
+                var constantType = ConstantType.Get(expr);
+                if (constantType != Uid.Default)
+                {
+                    if (this.types.Get(constantType) == Types.Primitive)
+                    {
+                        int size = this.type_size.Get(constantType);
+                        bool isfloat = this.is_floating_point.Get(constantType);
+                        if (isfloat && size == 4)
+                            il.Emit(OpCodes.Ldc_R4, (float)Convert.ChangeType(ConstantValue.Get(expr), typeof(float)));
+                        else if (isfloat && size == 8)
+                            il.Emit(OpCodes.Ldc_R8, (double)Convert.ChangeType(ConstantValue.Get(expr), typeof(double)));
+                        if (size <= 4)
+                            il.Emit(OpCodes.Ldc_I4, (int)Convert.ChangeType(ConstantValue.Get(expr), typeof(int)));
+                        else if (size == 8)
+                            il.Emit(OpCodes.Ldc_I8, (long)Convert.ChangeType(ConstantValue.Get(expr), typeof(long)));
+                        else
+                            throw new Exception("Cannot load type");
+                        return constantType;
+                    }
                 }
             }
+
+            {
+                var variable = variableType.Get(expr);
+                //il.Emit(OpCodes.Ld)
+                /*if (constantType != Uid.Default)
+                {
+                    if (this.types.Get(constantType) == Types.Primitive)
+                    {
+                        int size = this.type_size.Get(constantType);
+                        bool isfloat = this.is_floating_point.Get(constantType);
+                    }
+
+                }*/
+            }
+            
             if (localSymbols.Value.ContainsKey(expr))
             {
                 var local = localSymbols.Value.Get(expr);

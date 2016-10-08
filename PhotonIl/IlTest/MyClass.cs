@@ -8,6 +8,9 @@ namespace IlTest
 
 	public static class MyClass
 	{
+
+        public static int G = 5;
+
 		public static void Test2 (object o){
 			Console.WriteLine(o.ToString());
 		}
@@ -32,8 +35,8 @@ namespace IlTest
 
 		public static void Test3 ()
 		{
-			int x = 5;
-			int y = 10;
+			int x = G;
+			int y = G;
 			Test2(Op(x,y));
 		}
 
