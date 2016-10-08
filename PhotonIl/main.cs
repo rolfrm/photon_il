@@ -235,9 +235,18 @@ namespace PhotonIl
             var subexprs = SubExpressions.Get(expr);
             if (subexprs.Length == 0)
                 throw new Exception("Invalid expression");
-            var gen = Macros.Get(subexprs[0]);
-            if (gen != null)
-                return (Uid)gen(expr, il, this);
+			{
+				var gen = Macros.Get (subexprs [0]);
+				if (gen != null)
+					return gen (expr, il, this);
+			}
+			{
+				var gen = this.userMacros.Get (subexprs [0]);
+				if (gen != null)
+					return GenSubCall(gen (this, expr), il);
+			}
+
+
             return GenCall(expr, il);
 
         }
@@ -572,35 +581,53 @@ namespace PhotonIl
             return Uid.Default;
         }
 
-        Uid _add;
         public Uid Add
         {
-            get
-            {
-                if(_add == Uid.Default)
-                {
-                    _add = Uid.CreateNew();
-                    Macros.Add(_add, genAdd);
-                }
-                return _add;
-            }
+            get { return genBaseFunctor (OpCodes.Add); }
         }
-        public Uid genAdd(Uid expr, ILGenerator il, IlGen gen)
-        {
-            var subs = gen.SubExpressions.Get(expr);
-            if (subs.Length < 2)
-                throw new Exception("Invalid number of arguments for +");
-            Uid type = GenSubCall(subs[1], il);
-            for(int i = 2; i < subs.Length; i++)
-            {
-                Uid t2 = GenSubCall(subs[i], il);
-                if (type != t2)
-                    throw new Exception("Invalid type for +");
-                il.Emit(OpCodes.Add);
-            }
-            return type;
 
-        }
+		public Uid Subtract
+		{
+			get { return genBaseFunctor (OpCodes.Sub); }
+		}
+
+		public Uid Multiply
+		{
+			get { return genBaseFunctor (OpCodes.Mul); }
+		}
+
+		public Uid Divide
+		{
+			get { return genBaseFunctor (OpCodes.Div); }
+		}
+
+		public Uid genAdd(OpCode opcode, Uid expr, ILGenerator il, IlGen gen )
+		{
+			var subs = gen.SubExpressions.Get(expr);
+			if (subs.Length < 2)
+				throw new Exception("Invalid number of arguments for +");
+			Uid type = GenSubCall(subs[1], il);
+			for(int i = 2; i < subs.Length; i++)
+			{
+				Uid t2 = GenSubCall(subs[i], il);
+				if (type != t2)
+					throw new Exception("Invalid type for +");
+				il.Emit(opcode);
+			}
+			return type;
+		}
+
+		Dict<OpCode, Uid> BaseOpCodes = new Dict<OpCode, Uid>();
+
+		public Uid genBaseFunctor(OpCode c)
+		{
+			if (BaseOpCodes.ContainsKey (c) == false) {
+				Uid id = Uid.CreateNew ();
+				BaseOpCodes.Add (c, id);
+				Macros.Add(id, (x, y, z) => genAdd (c, x, y, z));
+			}
+			return BaseOpCodes.Get (c);
+		}
 
 
         Uid _let;
@@ -640,13 +667,10 @@ namespace PhotonIl
         {
             var exprs = SubExpressions.Get(expr);
             // set, accessor, value
-            //Uid typeid = GenSubCall(exprs[2], il);
-            //il.Emit(OpCodes.Dup);
             SetExprs.Add(exprs[1],exprs[2]);
             Uid typeid2 = GenSubCall(exprs[1], il);
             if (SetExprs.ContainsKey(exprs[1]))
                 throw new Exception("Sub expression does not support set");
-            //SetExprs.Remove(exprs[1]);
             return typeid2;
         }
 
@@ -686,6 +710,12 @@ namespace PhotonIl
             Symbols.Add(@new);
             return @new;
         }
+		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate>();
+		public delegate Uid MacroDelegate(IlGen gen, Uid expr);
+
+		public void AddMacro(Uid id, MacroDelegate d){
+			userMacros.Add (id, d);
+		}
 	}
 
 }

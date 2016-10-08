@@ -153,12 +153,39 @@ namespace PhotonIl
 			var sub = gen.Sub;
 
 			var fcnType = gen.GetFunctionType(gen.I32Type);
-			var addvec2 = gen.DefineFunction("plus", fcnType);
+			var addvec2 = gen.DefineFunction("pl µ s", fcnType);
 			var v = gen.DefineVariable (gen.I32Type, "test", 100);
-			gen.DefineFcnBody(addvec2, v);
+			gen.DefineFcnBody(addvec2, sub(gen.Add, v, v));
 			var m = gen.GenerateIL(addvec2);
 			var blank2 = (int)m.Invoke(null, null);
-			Assert.AreEqual(blank2, 100);
+			Assert.AreEqual(blank2, 100 * 2);
+		}
+
+		static Uid swapMacro(IlGen gen, Uid expr){
+			var sub = gen.SubExpressions.Get (expr);
+			if (sub.Length < 2)
+				throw new Exception ("Err");
+			var s = sub.Skip(1).ToArray ();
+			s [sub.Length - 1 - 1] = sub [sub.Length - 2];
+			s [sub.Length - 2 - 1] = sub [sub.Length - 1];
+			return gen.Sub (s);
+		}
+
+		static public void Test5(){
+			var gen = new IlGen();
+			var swapid = Uid.CreateNew ();
+			gen.AddMacro (swapid, swapMacro);
+			var sub = gen.Sub;
+			var c12 = gen.DefineConstant (gen.I32Type, 12);
+			var c32 = gen.DefineConstant (gen.I32Type, 32);
+			var swap = sub (swapid, gen.Subtract, c12, c32); // 12 - 32 -> 32 - 12.
+
+			var fcnType = gen.GetFunctionType(gen.I32Type);
+			var addvec2 = gen.DefineFunction("pl µ s", fcnType);
+			gen.DefineFcnBody(addvec2, swap);
+			var m = gen.GenerateIL(addvec2);
+			var blank2 = (int)m.Invoke(null, null);
+			Assert.AreEqual(blank2, 32 - 12);
 		}
 
 
