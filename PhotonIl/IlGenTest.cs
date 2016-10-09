@@ -45,11 +45,10 @@ namespace PhotonIl
 				sarg1 = gen.DefineArgument ("x", gen.I32Type), 
 				sarg2 = gen.DefineArgument ("y", gen.I32Type));
 
-            var bareStruct = gen.DefineFunction("<>", gen.GetFunctionType(typeId));
+			var bareStruct = gen.DefineFunction("<>", gen.I32Type);
 			gen.DefineFcnBody(bareStruct,sub(gen.GetStructConstructor(typeId)));
             
-            var fcnType = gen.GetFunctionType(gen.I32Type);
-            var addvec2 = gen.DefineFunction("plus", fcnType);
+			var addvec2 = gen.DefineFunction("plus", gen.I32Type);
 			Uid sym = gen.Sym("x");
 
 			gen.DefineFcnBody (addvec2, sub (gen.Progn,
@@ -63,17 +62,28 @@ namespace PhotonIl
 			return gen;
 		}
 
+		static public void Test0(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+
+			Uid arg, arg2;
+			var fid = gen.DefineFunction ("Identity", gen.I32Type, arg = gen.DefineArgument("X", gen.I32Type), arg2 = gen.DefineArgument("Y", gen.I32Type));
+			gen.DefineFcnBody (fid, sub(gen.Subtract, arg, arg2));
+			MethodInfo m = gen.GenerateIL (fid);
+			var x = m.Invoke (null, new object[]{ 5, 10 });
+			Assert.AreEqual ((int)x, -5);
+		}
+
         static public void Test1()
         {
             var gen = new IlGen();
             var sub = gen.Sub;
 			Uid sarg1, sarg2;
             var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),
-                sarg1 = gen.DefineArgument("x", gen.I32Type),
-                sarg2 = gen.DefineArgument("y", gen.I32Type));
+                sarg1 = gen.Arg("x", gen.I32Type),
+                sarg2 = gen.Arg("y", gen.I32Type));
             
-            var fcnType = gen.GetFunctionType(gen.I32Type);
-            var addvec2 = gen.DefineFunction("plus", fcnType);
+			var addvec2 = gen.DefineFunction("plus", gen.I32Type);
 			Uid sym = gen.Sym("x");
 			gen.DefineFcnBody(addvec2, sub(gen.Progn
 				,sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
@@ -95,8 +105,7 @@ namespace PhotonIl
                 sarg1 = gen.DefineArgument("x", gen.I32Type),
                 sarg2 = gen.DefineArgument("y", gen.I32Type));
 			
-            var fcnType = gen.GetFunctionType(gen.I32Type);
-            var addvec2 = gen.DefineFunction("plus", fcnType);
+			var addvec2 = gen.DefineFunction("plus", gen.I32Type);
 			Uid sym = gen.Sym("x");
 			gen.DefineFcnBody(addvec2, sub(gen.Progn
 				, sub(gen.Let, sym, sub(gen.GetStructConstructor(typeId)))
@@ -121,8 +130,7 @@ namespace PhotonIl
 
             Uid f1 = Uid.Default;
             {
-                var fcnType = gen.GetFunctionType(gen.I32Type);
-                var addvec2 = gen.DefineFunction("plus", fcnType);
+				var addvec2 = gen.DefineFunction("plus", gen.I32Type);
 				Uid sym = gen.Sym("x");
 
 				gen.DefineFcnBody (addvec2, sub (gen.Progn
@@ -138,8 +146,7 @@ namespace PhotonIl
                 f1 = addvec2;
             }
             {
-                var fcnType = gen.GetFunctionType(gen.I32Type);
-                var addvec2 = gen.DefineFunction("f", fcnType);
+				var addvec2 = gen.DefineFunction("f", gen.I32Type);
 				gen.DefineFcnBody(addvec2, sub(gen.Add, sub(f1), sub(f1), sub(f1), sub(f1)));
                 var m = gen.GenerateIL(addvec2);
                 var blank2 = (int)m.Invoke(null, null);
@@ -152,8 +159,7 @@ namespace PhotonIl
 			var gen = new IlGen();
 			var sub = gen.Sub;
 
-			var fcnType = gen.GetFunctionType(gen.I32Type);
-			var addvec2 = gen.DefineFunction("pl µ s", fcnType);
+			var addvec2 = gen.DefineFunction("pl µ s", gen.I32Type);
 			var v = gen.DefineVariable (gen.I32Type, "test", 100);
 			gen.DefineFcnBody(addvec2, sub(gen.Add, v, v));
 			var m = gen.GenerateIL(addvec2);
@@ -182,8 +188,7 @@ namespace PhotonIl
 			var c32 = gen.DefineConstant (gen.I32Type, 32);
 			var swap = sub (swapid, gen.Subtract, c12, c32); // 12 - 32 -> 32 - 12.
 
-			var fcnType = gen.GetFunctionType(gen.I32Type);
-			var addvec2 = gen.DefineFunction("pl µ s", fcnType);
+			var addvec2 = gen.DefineFunction("pl µ s", gen.I32Type);
 			gen.DefineFcnBody(addvec2, swap);
 			var m = gen.GenerateIL(addvec2);
 			var blank2 = (int)m.Invoke(null, null);
@@ -193,7 +198,7 @@ namespace PhotonIl
 		static public void Test6(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
-			var f = gen.DefineFunction ("test6", gen.GetFunctionType (gen.U32Type));
+			var f = gen.DefineFunction ("test6", gen.U32Type);
 			Uid arraysym = gen.Sym ("array");
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn
@@ -210,7 +215,7 @@ namespace PhotonIl
 		static public void Test6_2(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
-			var f = gen.DefineFunction ("test6_2", gen.GetFunctionType (gen.U32Type));
+			var f = gen.DefineFunction ("test6_2", gen.U32Type);
 			Uid arraysym = gen.Sym("array"), lensym = gen.Sym("length");
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn,
@@ -226,29 +231,29 @@ namespace PhotonIl
 			Assert.AreEqual (result, (uint)(5 + 100));
 		}
 
-		/*
 		static public void Test7(){
 			// swap macro written in photon.
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			Uid arg;
-			var f = gen.DefineFunction ("test7", gen.GetFunctionType (gen.UidType, gen.UidType));
+			var f = gen.DefineFunction ("test7", gen.I32Type, arg = gen.Arg("X", gen.UidType));
+
 			Uid arraysym, lensym, tmpsym;
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn
 					, sub (gen.Let, arraysym = gen.Sym ("array"), sub (gen.F.GetSubExpressions, arg))
 					, sub (gen.Let, lensym = gen.Sym ("length"), sub (gen.F.ArrayCount, arraysym)) 
-					, sub (gen.Let, tmpsym = gen.Sym ("tmp"), sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (1))))
+					, sub (gen.Let, tmpsym = gen.Sym ("tmp"), sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
 					// assuming 3+args.
 					, sub (gen.Set,
-					   sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (1))),
-					   sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (2))))
+					   sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))),
+						sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
 					, sub (gen.Set,
-					sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (2))),
+						sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))),
 					tmpsym)));
 			var m = gen.GenerateIL(f);
 			gen.AddMacro (gen.Sym ("swap"), m);
-		}*/
+		}
 
         static public IlGen Run ()
 		{
@@ -300,6 +305,10 @@ namespace PhotonIl
             if(!actual.Equals(expected))
                 throw new AssertionFailedException();
         }
+		public static void IsTrue(bool value){
+			if(!value)
+				throw new AssertionFailedException();
+		}
     }
 }
 

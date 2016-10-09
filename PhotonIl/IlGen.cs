@@ -37,10 +37,9 @@ namespace PhotonIl
         public Dict<Uid, bool> is_floating_point = new Dict<Uid, bool>();
 
         public Dict<Uid, Uid> FunctionReturnType = new Dict<Uid, Uid>();
-        public MultiDict<Uid, Uid> FunctionArgTypes = new MultiDict<Uid, Uid>();
+        
         public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo>();
         public Dict<Uid, string> FunctionName = new Dict<Uid, string>();
-        public Dict<Uid, Uid> FunctionType = new Dict<Uid, Uid>();
 
         public Dict<Uid, Generator> IlGenerators = new Dict<Uid, Generator>();
         public Dict<Uid, Func<Uid, ILGenerator, IlGen, Uid>> Macros = new Dict<Uid, Func<Uid, ILGenerator, IlGen, Uid>>();
@@ -67,21 +66,14 @@ namespace PhotonIl
             return ftype;
         }
 
-        public void AddFunctionArg(Uid fcn, Uid argType)
+        public void AddFunctionArg(Uid fcn, Uid arg)
         {
-            FunctionArgTypes.Add(fcn, argType);
+			FunctionArguments.Add (fcn, arg);
         }
 
         public void SetFunctionReturnType(Uid fcn, Uid returnType)
         {
             FunctionReturnType[fcn] = returnType;
-        }
-
-        public Uid DefineFunction(string name, Uid type) {
-            var Id = Uid.CreateNew();
-            FunctionName.Add(Id, name);
-            FunctionType.Add(Id, type);
-            return Id;
         }
 
 		Uid addCSharpType(Type type){
@@ -98,7 +90,7 @@ namespace PhotonIl
 
         public IlGen()
         {
-			F = new Functions (this);
+			
 			U8Type = AddPrimitive("u8", 1, typeof(byte));
 			U16Type = AddPrimitive("u16", 2, typeof(short));
 			U32Type = AddPrimitive("u32", 4, typeof(uint));
@@ -110,6 +102,7 @@ namespace PhotonIl
 
             IlGenerators.Add(CallExpression, GenCall);
             Debug.Assert(this.type_size.Get(U8Type) == 1);
+			F = new Functions (this);
         }
 
 		public Uid getPhotonType(Type t){
@@ -250,12 +243,18 @@ namespace PhotonIl
                 var local = localSymbols.Value.Get(expr);
                 if (ReferenceReq.Contains(expr))
                 {
-                    il.Emit(OpCodes.Ldloca_S, local.Local);
+					if (local.Local != default(LocalBuilder))
+						il.Emit (OpCodes.Ldloca_S, local.Local);
+					else
+						il.Emit (OpCodes.Ldarga, local.ArgIndex);
                     ReferenceReq.Remove(expr);
                 }
                 else
                 {
-                    il.Emit(OpCodes.Ldloc, local.Local);
+					if (local.Local != default(LocalBuilder))
+						il.Emit (OpCodes.Ldloc, local.Local);
+					else
+						il.Emit (OpCodes.Ldarg, local.ArgIndex);
                 }
                 return local.TypeId;
             }
@@ -314,7 +313,7 @@ namespace PhotonIl
                     typeof(ValueType));
                 var members = structMembers.Get(typeid);
                 foreach (var member in members)
-                    typebuilder.DefineField(argumentName.Get(member), GetCSType(argumentType.Get(member)),
+                    typebuilder.DefineField(ArgumentName.Get(member), GetCSType(ArgumentType.Get(member)),
                         FieldAttributes.Public);
                 generatedStructs.Add(typeid, typebuilder.CreateType());
             }
@@ -333,8 +332,8 @@ namespace PhotonIl
             {
                 GenerateIL(function);
             }
-            var mt = FunctionType.Get(function);
-            var args = FunctionArgTypes.Get(mt);
+            var mt = function;
+			var args = FunctionArguments.Get(function);
             var returnType = FunctionReturnType.Get(mt);
 
             if (args.Length != subexprs.Length - 1)
@@ -345,7 +344,7 @@ namespace PhotonIl
                 using (var item = ExpectedType.WithValue(args[i - 1])) {
 
                     Uid type = GenSubCall(subexprs[i], il);
-                    if (type != args[i - 1])
+					if (type != ArgumentType.Get(args[i - 1]))
                         throw new CompilerError(subexprs[i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, args[i - 1], type);
                     stlocs[i - 1] = il.DeclareLocal(GetCSType(type));
                     il.Emit(OpCodes.Stloc, stlocs[i - 1]);
@@ -378,17 +377,25 @@ namespace PhotonIl
 
             var name = FunctionName.Get(expr) ?? "_";
             var body = functionBody.Get(expr);
-            var ftype = FunctionType.Get(expr);
+            var ftype = expr;
             if (body != Uid.Default)
             {
 
                 MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
                     GetCSType(FunctionReturnType.Get(ftype)),
-                    FunctionArgTypes.Get(ftype).Select(GetCSType).ToArray());
+					FunctionArguments.Get(ftype).Select(arg => GetCSType(ArgumentType.Get(arg))).ToArray());
                 var ilgen = fn.GetILGenerator();
 				Uid rt;
-                using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                    rt = GenSubCall(body, ilgen);
+				using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
+					var fargs = FunctionArguments.Get (expr);
+					short paramIndex = 0;
+					foreach (var arg in fargs) {
+						var paramBuilder = fn.DefineParameter (paramIndex, ParameterAttributes.None, ArgumentName.Get (arg) ?? ("arg_" + arg) );
+						localSymbols.Value.Add (arg, new LocalSymData{ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
+						paramIndex += 1;
+					}
+					rt = GenSubCall (body, ilgen);
+				}
 				if (rt != FunctionReturnType.Get(ftype))
 					throw new Exception ("Return types does not match");
                 ilgen.Emit(OpCodes.Ret);
@@ -423,17 +430,21 @@ namespace PhotonIl
             return CreateExpression(uids);
         }
 
-        Dict<Uid, string> argumentName = new Dict<Uid, string>();
-        Dict<Uid, Uid> argumentType = new Dict<Uid, Uid>();
+        public Dict<Uid, string> ArgumentName = new Dict<Uid, string>();
+        public Dict<Uid, Uid> ArgumentType = new Dict<Uid, Uid>();
 
         public Uid DefineArgument(string name = null, Uid type = default(Uid)) {
             var id = Uid.CreateNew();
             if (name != null)
-                argumentName.Add(id, name);
+                ArgumentName.Add(id, name);
             if (type != default(Uid))
-                argumentType.Add(id, type);
+                ArgumentType.Add(id, type);
             return id;
         }
+
+		public Uid Arg(string name, Uid type){
+			return DefineArgument (name, type);
+		}
 
         // Variable that defines the struct name.
         Dict<Uid, Uid> structName = new Dict<Uid, Uid>();
@@ -489,9 +500,8 @@ namespace PhotonIl
                 il.Emit(OpCodes.Ldfld, field);
             }
 
-            return gen.argumentType.Get(memberid);
+            return gen.ArgumentType.Get(memberid);
         }
-
 
         Uid InitStruct;
         public static Uid GenStruct(Uid expr, ILGenerator il, IlGen gen)
@@ -512,7 +522,6 @@ namespace PhotonIl
 
         void GenStructConstructorIl(ILGenerator il, Uid structid) {
             il.Emit(OpCodes.Ldloc, il.DeclareLocal(GetCSType(structid)));
-            //il.Emit(OpCodes.Initobj, getNetType(structid))
         }
 
         FieldInfo getNetFieldInfo(Uid member, Uid structType)
@@ -523,7 +532,7 @@ namespace PhotonIl
         }
 
 
-        public Uid GetFunctionType(Uid returnType, params Uid[] argTypes) {
+        /*public Uid GetFunctionType(Uid returnType, params Uid[] argTypes) {
             var existing = FunctionReturnType.Where(x => x.Value == returnType)
                 .FirstOrDefault(x => Enumerable.SequenceEqual(argTypes, FunctionArgTypes.Get(x.Key))).Key;
             if (existing != Uid.Default)
@@ -533,15 +542,15 @@ namespace PhotonIl
                 FunctionReturnType.Add(@new, returnType);
             FunctionArgTypes.Add(@new, argTypes);
             return @new;
-        }
+        }*/
 
-        MultiDict<Uid, Uid> functionArguments = new MultiDict<Uid, Uid>();
-        public Uid DefineFunction(string name, Uid fcnType, params Uid[] arguments) {
+        MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid>();
+        public Uid DefineFunction(string name, Uid returnType, params Uid[] arguments) {
 
             var id = Uid.CreateNew();
             variableValue.Add(id, name);
-            FunctionType.Add(id, fcnType);
-            functionArguments.Add(id, arguments);
+			FunctionReturnType.Add(id, returnType);
+            FunctionArguments.Add(id, arguments);
             return id;
         }
 
@@ -687,6 +696,7 @@ namespace PhotonIl
         struct LocalSymData
         {
             public LocalBuilder Local;
+			public short ArgIndex;
             public Uid TypeId;
         }
 
@@ -725,6 +735,11 @@ namespace PhotonIl
 
 		public void AddMacro(Uid id, MacroDelegate d){
 			userMacros.Add (id, d);
+		}
+
+		public void AddMacro(Uid id, MethodInfo m){
+			Assert.IsTrue (m.IsStatic && m.IsPublic);
+			userMacros.Add (id, expr => (Uid)m.Invoke (null, null));
 		}
 	}
 

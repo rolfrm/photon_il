@@ -16,6 +16,9 @@ namespace PhotonIl
 			gen.AddMacro (ArrayCount, arrayCount);
 			gen.AddMacro (ArrayAccess, arrayAccess);
 			gen.TypeGetters.Add (getCSType);
+
+			GetSubExpressions = gen.DefineFunction("get subexpressions",getArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
+			gen.FunctionInvocation.Add (GetSubExpressions, GetType ().GetMethod ("getSubExpressions", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public));
 		}
 
 		Type getCSType(Uid arraytype){
@@ -25,6 +28,7 @@ namespace PhotonIl
 		public readonly Uid CreateArray;
 		public readonly Uid ArrayCount;
 		public readonly Uid ArrayAccess;
+		public readonly Uid GetSubExpressions;
 
 		public readonly Dict<Type, Uid> arrayTypes = new Dict<Type, Uid>();
 		public readonly Dict<Uid, Uid> arrayElemTypes = new Dict<Uid, Uid>();
@@ -82,13 +86,15 @@ namespace PhotonIl
 				Interact.IL.Emit (OpCodes.Ldelem, gen.GetCSType (elemType1));
 				return elemType1;
 			}
-
 		}
 
 		public Uid Const(object v){
 			return gen.DefineConstant (gen.getPhotonType (v.GetType ()), v);
 		}
 
+		public static Uid[] getSubExpressions(Uid expr){
+			return Interact.Current.SubExpressions.Get (expr);
+		}
 
 
 		Uid notImplemented(Uid expr){
