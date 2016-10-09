@@ -13,6 +13,9 @@ namespace PhotonIl
 		static void run_tests(){
 			try
 			{
+				//IlGenTest.Test7();
+				IlGenTest.Test6_2();
+				IlGenTest.Test6();
 				IlGenTest.Test5();
 				IlGenTest.Test4();
 				IlGenTest.Test3();

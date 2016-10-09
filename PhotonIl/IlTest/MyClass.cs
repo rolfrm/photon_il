@@ -47,6 +47,31 @@ namespace IlTest
             s.Y = 10;
             Console.WriteLine("{0} {1}", s.X, s.Y);
         }
+
+		public static void ArrayTest(){
+			var array = new int[10];
+			unsafe{
+				fixed(int* ptr = array) {
+					for (int i = 0; i < array.Length; i++) {
+						ptr [0] += ptr [i];
+					}
+				}
+			}
+			Console.WriteLine ("{0}", array [0]);
+		}
+
+		public unsafe static void ArrayTest2(){
+			int * array = stackalloc int[10];
+
+			Console.WriteLine ("{0}", array [0]);
+		}
+
+		public static void ArrayTest3(){
+			var array = new int[10];
+			Console.Write ("{0}", array [0]);
+			Console.Write ("{0}", array.Length);
+				
+		}
 	}
 }
 

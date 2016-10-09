@@ -46,6 +46,8 @@
     <Compile Include="Uid.cs" />
     <Compile Include="StackLocal.cs" />
     <Compile Include="IlGen.cs" />
+    <Compile Include="Interact.cs" />
+    <Compile Include="Functions.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />S
 </Project>

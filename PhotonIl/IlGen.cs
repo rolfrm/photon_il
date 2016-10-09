@@ -26,6 +26,9 @@ namespace PhotonIl
 
     public class IlGen
     {
+		
+		public Functions F;
+
         public static Uid CallExpression = Uid.CreateNew();
         public static Uid MacroExpression = Uid.CreateNew();
         public Dict<Uid, Types> types = new Dict<Uid, Types>();
@@ -44,7 +47,7 @@ namespace PhotonIl
 
         public delegate Uid Generator(Uid exprid, ILGenerator gen);
 
-        public Uid AddPrimitive(string name, int size, bool is_float = false)
+		public Uid AddPrimitive(string name, int size, Type dotNetType = null, bool is_float = false)
         {
             var prim = Uid.CreateNew();
             types.Add(prim, Types.Primitive);
@@ -52,6 +55,7 @@ namespace PhotonIl
             type_name.Add(prim, name);
             if (is_float)
                 is_floating_point.Add(prim, is_float);
+			generatedStructs.Add (prim, dotNetType);
             return prim;
         }
 
@@ -80,18 +84,40 @@ namespace PhotonIl
             return Id;
         }
 
+		Uid addCSharpType(Type type){
+			if (type.IsValueType == false)
+				throw new Exception ("Unable to add non-value type");
+
+			Uid uid = Uid.CreateNew ();
+
+			this.types.Add (uid, Types.Struct);
+			this.generatedStructs.Add (uid, type);
+			this.type_name.Add (uid, type.Name);
+			return uid;
+		}
+
         public IlGen()
         {
-            U8Type = AddPrimitive("u8", 1);
-            U16Type = AddPrimitive("u16", 2);
-            U32Type = AddPrimitive("u32", 4);
-            I32Type = AddPrimitive("i32", 4);
-            F32Type = AddPrimitive("f32", 4, is_float: true);
+			F = new Functions (this);
+			U8Type = AddPrimitive("u8", 1, typeof(byte));
+			U16Type = AddPrimitive("u16", 2, typeof(short));
+			U32Type = AddPrimitive("u32", 4, typeof(uint));
+			I32Type = AddPrimitive("i32", 4, typeof(int));
+			F32Type = AddPrimitive("f32", 4, typeof(float),is_float: true);
             VoidType = AddPrimitive("void", 0);
             StringType = Uid.CreateNew();
+			UidType = addCSharpType (typeof(Uid));
+
             IlGenerators.Add(CallExpression, GenCall);
             Debug.Assert(this.type_size.Get(U8Type) == 1);
         }
+
+		public Uid getPhotonType(Type t){
+			var entry = generatedStructs.FirstOrDefault (x => x.Value == t);
+			if (entry.Key != Uid.Default)
+				return entry.Key;
+			throw new Exception ("Type not found: " + t.Name);
+		}
 
         public readonly Uid U8Type;
         public readonly Uid U16Type;
@@ -100,6 +126,8 @@ namespace PhotonIl
         public readonly Uid F32Type;
         public readonly Uid VoidType;
         public readonly Uid StringType;
+
+		public readonly Uid UidType;
 
         public HashSet<Uid> Expressions = new HashSet<Uid>();
         public MultiDict<Uid, Uid> SubExpressions = new MultiDict<Uid, Uid>();
@@ -172,7 +200,7 @@ namespace PhotonIl
 				var mod = newModule ();
 				var tp = mod.DefineType ("no-name");
 
-				tp.DefineField (name, getNetType (typeid), FieldAttributes.Public | FieldAttributes.Static); 
+				tp.DefineField (name, GetCSType (typeid), FieldAttributes.Public | FieldAttributes.Static); 
 				var objtype = tp.CreateType ();
 				v = objtype.GetField (name, BindingFlags.Public | BindingFlags.Static);
 
@@ -182,7 +210,6 @@ namespace PhotonIl
 			}
 			return v;
 		}
-			
 
         public Uid GenSubCall(Uid expr, ILGenerator il)
         {
@@ -241,9 +268,15 @@ namespace PhotonIl
 					return gen (expr, il, this);
 			}
 			{
+				Interact.Load (this, il);
 				var gen = this.userMacros.Get (subexprs [0]);
-				if (gen != null)
-					return GenSubCall(gen (this, expr), il);
+				if (gen != null) {
+					var ret = gen (expr);
+					if (SubExpressions.Get (ret).Length == 0)
+						return ret;
+					else
+						return GenSubCall (ret, il);
+				}
 			}
 
 
@@ -251,30 +284,24 @@ namespace PhotonIl
 
         }
 
-        public Type getNetType(Uid typeid) {
-            if (this.types.Get(typeid) == Types.Primitive) {
-                int size = this.type_size.Get(typeid);
-                bool isfloat = this.is_floating_point.Get(typeid);
-                if (isfloat && size == 4)
-                    return typeof(float);
-                else if (isfloat && size == 8)
-                    return typeof(double);
-                else if (size == 4)
-                    return typeof(int);
-                else if (size == 8)
-                    return typeof(long);
-                else if (size == 2)
-                    return typeof(short);
-                else if (size == 1)
-                    return typeof(byte);
-                else
-                    throw new Exception("Cannot load type");
+        public Type GetCSType(Uid typeid) {
+            if (generatedStructs.Get (typeid) != null) {
+				return generatedStructs.Get (typeid);
             } else if (types.Get(typeid) == Types.Struct) {
                 return getStructType(typeid);
             }
+			foreach (var f in TypeGetters) {
+				Type t = f (typeid);
+				if (t != null)
+					return t;
+			}
 
             throw new Exception("Unsupported type");
         }
+
+		public delegate Type TypeGetter (Uid expr);
+
+		public readonly List<TypeGetter> TypeGetters = new List<TypeGetter>();
 
         Type getStructType(Uid typeid)
         {
@@ -287,7 +314,7 @@ namespace PhotonIl
                     typeof(ValueType));
                 var members = structMembers.Get(typeid);
                 foreach (var member in members)
-                    typebuilder.DefineField(argumentName.Get(member), getNetType(argumentType.Get(member)),
+                    typebuilder.DefineField(argumentName.Get(member), GetCSType(argumentType.Get(member)),
                         FieldAttributes.Public);
                 generatedStructs.Add(typeid, typebuilder.CreateType());
             }
@@ -320,7 +347,7 @@ namespace PhotonIl
                     Uid type = GenSubCall(subexprs[i], il);
                     if (type != args[i - 1])
                         throw new CompilerError(subexprs[i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, args[i - 1], type);
-                    stlocs[i - 1] = il.DeclareLocal(getNetType(type));
+                    stlocs[i - 1] = il.DeclareLocal(GetCSType(type));
                     il.Emit(OpCodes.Stloc, stlocs[i - 1]);
                 }
             }
@@ -356,12 +383,14 @@ namespace PhotonIl
             {
 
                 MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
-                    getNetType(FunctionReturnType.Get(ftype)),
-                    FunctionArgTypes.Get(ftype).Select(getNetType).ToArray());
+                    GetCSType(FunctionReturnType.Get(ftype)),
+                    FunctionArgTypes.Get(ftype).Select(GetCSType).ToArray());
                 var ilgen = fn.GetILGenerator();
-
+				Uid rt;
                 using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                    GenSubCall(body, ilgen);
+                    rt = GenSubCall(body, ilgen);
+				if (rt != FunctionReturnType.Get(ftype))
+					throw new Exception ("Return types does not match");
                 ilgen.Emit(OpCodes.Ret);
                 Type t = tb.CreateType();
                 fn.InitLocals = true;
@@ -482,29 +511,17 @@ namespace PhotonIl
         }
 
         void GenStructConstructorIl(ILGenerator il, Uid structid) {
-            il.Emit(OpCodes.Ldloc, il.DeclareLocal(getNetType(structid)));
+            il.Emit(OpCodes.Ldloc, il.DeclareLocal(GetCSType(structid)));
             //il.Emit(OpCodes.Initobj, getNetType(structid))
-        }
-
-        void GenStructAccessorIl(ILGenerator il, Uid structid, Uid member) {
-            //il.Emit(OpCodes.Ld
         }
 
         FieldInfo getNetFieldInfo(Uid member, Uid structType)
         {
             var args = structMembers.Get(structType);
             var idx = Array.IndexOf(args, member);
-            return getNetType(structType).GetFields()[idx];
+            return GetCSType(structType).GetFields()[idx];
         }
 
-        Uid GenStructAccess(ILGenerator il, Uid[] exprs) {
-            Uid member = exprs[0];
-            Uid structExpr = exprs[0];
-            Uid structType = GenCall(structExpr, il);
-            
-            il.Emit(OpCodes.Ldfld, getNetFieldInfo(member, structType));
-            return argumentType.Get(member);
-        }
 
         public Uid GetFunctionType(Uid returnType, params Uid[] argTypes) {
             var existing = FunctionReturnType.Where(x => x.Value == returnType)
@@ -680,7 +697,7 @@ namespace PhotonIl
             var exprs = gen.SubExpressions.Get(expr);
             Debug.Assert(Symbols.Contains(exprs[1]));
             Uid type = GenSubCall(exprs[2], il);
-            var local = il.DeclareLocal(getNetType(type));
+            var local = il.DeclareLocal(GetCSType(type));
             il.Emit(OpCodes.Dup);
             il.Emit(OpCodes.Stloc, local);
             localSymbols.Value.Add(exprs[1], new LocalSymData { Local = local, TypeId = type });
@@ -704,7 +721,7 @@ namespace PhotonIl
             return @new;
         }
 		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate>();
-		public delegate Uid MacroDelegate(IlGen gen, Uid expr);
+		public delegate Uid MacroDelegate(Uid expr);
 
 		public void AddMacro(Uid id, MacroDelegate d){
 			userMacros.Add (id, d);

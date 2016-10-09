@@ -161,7 +161,8 @@ namespace PhotonIl
 			Assert.AreEqual(blank2, 100 * 2);
 		}
 
-		static Uid swapMacro(IlGen gen, Uid expr){
+		static Uid swapMacro(Uid expr){
+			var gen = Interact.Current;
 			var sub = gen.SubExpressions.Get (expr);
 			if (sub.Length < 2)
 				throw new Exception ("Err");
@@ -172,6 +173,7 @@ namespace PhotonIl
 		}
 
 		static public void Test5(){
+			
 			var gen = new IlGen();
 			var swapid = Uid.CreateNew ();
 			gen.AddMacro (swapid, swapMacro);
@@ -188,6 +190,65 @@ namespace PhotonIl
 			Assert.AreEqual(blank2, 32 - 12);
 		}
 
+		static public void Test6(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			var f = gen.DefineFunction ("test6", gen.GetFunctionType (gen.U32Type));
+			Uid arraysym = gen.Sym ("array");
+			gen.DefineFcnBody (f, 
+				sub (gen.Progn
+					, sub (gen.Let,
+					     arraysym, sub (gen.F.CreateArray, gen.I32Type, gen.F.Const (15)))
+					, sub (gen.F.ArrayCount, arraysym)));
+					
+
+			var m = gen.GenerateIL(f);
+			var result = m.Invoke (null, null);
+			Assert.AreEqual ((uint)result, (uint)(15));
+		}
+
+		static public void Test6_2(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			var f = gen.DefineFunction ("test6_2", gen.GetFunctionType (gen.U32Type));
+			Uid arraysym = gen.Sym("array"), lensym = gen.Sym("length");
+			gen.DefineFcnBody (f, 
+				sub (gen.Progn,
+					sub (gen.Let,
+						arraysym, sub (gen.F.CreateArray, gen.U32Type, gen.F.Const((uint)5))),
+					sub (gen.Let, lensym, sub (gen.F.ArrayCount, arraysym)),
+					sub (gen.Set, sub (gen.F.ArrayAccess, arraysym, gen.F.Const(3)),
+						sub (gen.Add, lensym, sub (gen.F.ArrayAccess, arraysym, gen.F.Const(3)), gen.F.Const ((uint)100)))
+					,sub(gen.F.ArrayAccess, arraysym, gen.F.Const(3))));
+			
+			var m = gen.GenerateIL(f);
+			var result = (uint)m.Invoke (null, null);
+			Assert.AreEqual (result, (uint)(5 + 100));
+		}
+
+		/*
+		static public void Test7(){
+			// swap macro written in photon.
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			Uid arg;
+			var f = gen.DefineFunction ("test7", gen.GetFunctionType (gen.UidType, gen.UidType));
+			Uid arraysym, lensym, tmpsym;
+			gen.DefineFcnBody (f, 
+				sub (gen.Progn
+					, sub (gen.Let, arraysym = gen.Sym ("array"), sub (gen.F.GetSubExpressions, arg))
+					, sub (gen.Let, lensym = gen.Sym ("length"), sub (gen.F.ArrayCount, arraysym)) 
+					, sub (gen.Let, tmpsym = gen.Sym ("tmp"), sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (1))))
+					// assuming 3+args.
+					, sub (gen.Set,
+					   sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (1))),
+					   sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (2))))
+					, sub (gen.Set,
+					sub (gen.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.I.Const (2))),
+					tmpsym)));
+			var m = gen.GenerateIL(f);
+			gen.AddMacro (gen.Sym ("swap"), m);
+		}*/
 
         static public IlGen Run ()
 		{
