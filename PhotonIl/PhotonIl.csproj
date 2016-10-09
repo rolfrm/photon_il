@@ -40,12 +40,12 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="main.cs" />
     <Compile Include="IlDemo.cs" />
     <Compile Include="Dict.cs" />
     <Compile Include="IlGenTest.cs" />
     <Compile Include="Uid.cs" />
     <Compile Include="StackLocal.cs" />
+    <Compile Include="IlGen.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />S
 </Project>

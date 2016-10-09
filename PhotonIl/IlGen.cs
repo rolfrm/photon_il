@@ -377,19 +377,12 @@ namespace PhotonIl
 
                 var ilgen = fn.GetILGenerator();
                 using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                {
                     GenSubCall(expr, ilgen);
-                }
                 ilgen.Emit(OpCodes.Ret);
                 Type t = tb.CreateType();
                 var runm = t.GetMethod("run");
-                //Action x;
                 module.CreateGlobalFunctions();
-                //a.Save("myasm.dll");
-                //var assembly = Assembly.LoadFrom ("myasm.dll");
-                //var extypes = assembly.GetExportedTypes ();
                 return runm;
-                //runm.Invoke (null, null);
             }
         }
         public delegate Uid SubExpressionDelegate(params Uid[] uids);
