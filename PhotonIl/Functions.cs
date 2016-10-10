@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Collections.Generic;
 
 namespace PhotonIl
 {
@@ -12,31 +13,39 @@ namespace PhotonIl
 			CreateArray = gen.Sym ("Create Array");
 			ArrayCount = gen.Sym ("Array Count");
 			ArrayAccess = gen.Sym ("Array Access");
+			Cast = gen.Sym ("Cast");
 			gen.AddMacro (CreateArray, createArray);
 			gen.AddMacro (ArrayCount, arrayCount);
 			gen.AddMacro (ArrayAccess, arrayAccess);
+			gen.AddMacro (Cast, cast);
 			gen.TypeGetters.Add (getCSType);
 
-			GetSubExpressions = gen.DefineFunction("get subexpressions",getArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
+			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
 			gen.FunctionInvocation.Add (GetSubExpressions, GetType ().GetMethod ("getSubExpressions", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public));
 		}
 
 		Type getCSType(Uid arraytype){
-			return arrayTypes.FirstOrDefault (x => x.Value == arraytype).Key;
+			var item = arrayTypes.FirstOrDefault (x => x.Value == arraytype);
+			return item.Key;
 		}
 
 		public readonly Uid CreateArray;
 		public readonly Uid ArrayCount;
 		public readonly Uid ArrayAccess;
 		public readonly Uid GetSubExpressions;
+		public readonly Uid Cast;
 
 		public readonly Dict<Type, Uid> arrayTypes = new Dict<Type, Uid>();
 		public readonly Dict<Uid, Uid> arrayElemTypes = new Dict<Uid, Uid>();
 
-		public Uid getArrayType(Uid photonType){
+		public Uid ElemToArrayType(Uid photonType){
 			var type = gen.GetCSType(photonType);
-			if (!arrayTypes.ContainsKey (type))
-				arrayTypes.Add (type, Uid.CreateNew ());
+			if (!arrayTypes.ContainsKey (type)) {
+				Uid id;
+				arrayTypes.Add (type, id = Uid.CreateNew ());
+				this.arrayElemTypes.Add (id, photonType); 
+				gen.generatedStructs.Add (id, type.MakeArrayType ());
+			}
 			return arrayTypes.Get (type);
 		}
 
@@ -45,7 +54,7 @@ namespace PhotonIl
 			var elemType = gen.GetCSType (s [1]);
 
 			Uid numtype = Interact.CallOn (s [2]);
-			if (gen.types.Get (numtype) != Types.Primitive)
+			if (gen.types.Get (numtype) != PhotonIl.Types.Primitive)
 				throw new Exception ("count not a number type");
 			Interact.IL.Emit (System.Reflection.Emit.OpCodes.Newarr, elemType);
 
@@ -93,9 +102,26 @@ namespace PhotonIl
 		}
 
 		public static Uid[] getSubExpressions(Uid expr){
+			
 			return Interact.Current.SubExpressions.Get (expr);
 		}
 
+		static Type[] Types = new Type[]
+		{typeof(SByte), typeof(Int16), typeof(Int32), typeof(Int64),
+			typeof(byte),typeof(UInt16), typeof(UInt32), typeof(UInt64), typeof(float), typeof(double)};
+		static OpCode[] Opcodes = new []{OpCodes.Conv_I1, OpCodes.Conv_I2,OpCodes.Conv_I4, OpCodes.Conv_I8,
+			OpCodes.Conv_U1, OpCodes.Conv_U2, OpCodes.Conv_U4, OpCodes.Conv_U8, OpCodes.Conv_R4, OpCodes.Conv_R8};
+
+		public static Uid cast(Uid expr){
+			var s = Interact.Current.SubExpressions.Get (expr);
+			var type = Interact.Current.GetCSType (s [1]);
+			Uid rtype = Interact.CallOn (s [2]);
+			int idx = Array.IndexOf (Types, type);
+			if (idx == -1)
+				throw new CompilerError (expr, "Unable to cast from {0} to {1}", Interact.Current.GetCSType (rtype), Interact.Current.GetCSType (s [1])); 
+			Interact.IL.Emit (Opcodes [idx]);
+			return s [1];
+		}
 
 		Uid notImplemented(Uid expr){
 			throw new NotImplementedException();

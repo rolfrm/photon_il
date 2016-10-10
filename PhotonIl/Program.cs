@@ -13,15 +13,16 @@ namespace PhotonIl
 		static void run_tests(){
 			try
 			{
-				//IlGenTest.Test7();
-				IlGenTest.Test0();
+				/*IlGenTest.Test0();
 				IlGenTest.Test1();
 				IlGenTest.Test2();
 				IlGenTest.Test3();
 				IlGenTest.Test4();
 				IlGenTest.Test5();
 				IlGenTest.Test6();
-				IlGenTest.Test6_2();
+				IlGenTest.Test6_2();*/
+				//IlGenTest.Test6_3();
+				IlGenTest.Test7();
 				Console.WriteLine("Passed");
 			}
 			catch

@@ -295,6 +295,7 @@ namespace PhotonIl
 					return t;
 			}
 
+
             throw new Exception("Unsupported type");
         }
 
@@ -396,6 +397,7 @@ namespace PhotonIl
 					}
 					rt = GenSubCall (body, ilgen);
 				}
+				var rtt = GetCSType (rt);
 				if (rt != FunctionReturnType.Get(ftype))
 					throw new Exception ("Return types does not match");
                 ilgen.Emit(OpCodes.Ret);

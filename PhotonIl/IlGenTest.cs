@@ -236,23 +236,25 @@ namespace PhotonIl
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			Uid arg;
-			var f = gen.DefineFunction ("test7", gen.I32Type, arg = gen.Arg("X", gen.UidType));
+			var f = gen.DefineFunction ("test7", gen.F.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
 
-			Uid arraysym, lensym, tmpsym;
+			Uid arraysym =gen.Sym ("array"), lensym =gen.Sym ("length"), tmpsym =gen.Sym ("tmp");
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn
-					, sub (gen.Let, arraysym = gen.Sym ("array"), sub (gen.F.GetSubExpressions, arg))
-					, sub (gen.Let, lensym = gen.Sym ("length"), sub (gen.F.ArrayCount, arraysym)) 
-					, sub (gen.Let, tmpsym = gen.Sym ("tmp"), sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
-					// assuming 3+args.
-					, sub (gen.Set,
-					   sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))),
-						sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
-					, sub (gen.Set,
-						sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))),
-					tmpsym)));
+					, sub (gen.Let, arraysym, sub (gen.F.GetSubExpressions, arg))
+					, sub (gen.Let, lensym, sub (gen.F.Cast, gen.I32Type, sub (gen.F.ArrayCount, arraysym))) 
+					, sub (gen.Let, tmpsym, sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
+					, sub (gen.Set
+					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1)))
+					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
+					, sub (gen.Set
+					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2)))
+						, tmpsym)
+					, arraysym));
 			var m = gen.GenerateIL(f);
-			gen.AddMacro (gen.Sym ("swap"), m);
+			var subexpr = (Uid[])m.Invoke (null, new object[]{sub (f, gen.U16Type, gen.U32Type)});
+			Assert.AreEqual (subexpr [1], gen.U32Type);
+			Assert.AreEqual (subexpr [2], gen.U16Type);
 		}
 
         static public IlGen Run ()
