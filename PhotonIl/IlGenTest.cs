@@ -269,7 +269,7 @@ namespace PhotonIl
 			cb.SetString ("5");
 			var opt = cb.GetOptions ().First (option => option == gen.I32Type);
 			cb.SelectOption (opt);
-			cb.InsertExpr ();
+			//cb.InsertExpr ();
 			cb.PushArgument ();
 			cb.SetString ("9");
 			var opt2 = cb.GetOptions ().First (option => option == gen.I32Type);

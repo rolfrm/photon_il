@@ -96,6 +96,8 @@ namespace PhotonIl
 			U32Type = AddPrimitive("u32", 4, typeof(uint));
 			I32Type = AddPrimitive("i32", 4, typeof(int));
 			F32Type = AddPrimitive("f32", 4, typeof(float),is_float: true);
+			F64Type = AddPrimitive("f64", 8, typeof(double),is_float: true);
+
             VoidType = AddPrimitive("void", 0);
             StringType = Uid.CreateNew();
 			UidType = addCSharpType (typeof(Uid));
@@ -117,6 +119,7 @@ namespace PhotonIl
         public readonly Uid U32Type;
         public readonly Uid I32Type;
         public readonly Uid F32Type;
+		public readonly Uid F64Type;
         public readonly Uid VoidType;
         public readonly Uid StringType;
 
