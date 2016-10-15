@@ -392,7 +392,8 @@ namespace PhotonIl
 					var fargs = FunctionArguments.Get (expr);
 					short paramIndex = 0;
 					foreach (var arg in fargs) {
-						var paramBuilder = fn.DefineParameter (paramIndex, ParameterAttributes.None, ArgumentName.Get (arg) ?? ("arg_" + arg) );
+						var argname = ArgumentName.Get (arg) ?? ("arg_" + arg);
+						var paramBuilder = fn.DefineParameter (paramIndex + 1, ParameterAttributes.None, argname );
 						localSymbols.Value.Add (arg, new LocalSymData{ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
 						paramIndex += 1;
 					}
@@ -552,9 +553,9 @@ namespace PhotonIl
         public Uid DefineFunction(string name, Uid returnType, params Uid[] arguments) {
 
             var id = Uid.CreateNew();
-            variableValue.Add(id, name);
 			FunctionReturnType.Add(id, returnType);
             FunctionArguments.Add(id, arguments);
+			FunctionName.Add (id, name);
             return id;
         }
 
