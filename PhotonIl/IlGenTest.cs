@@ -257,6 +257,52 @@ namespace PhotonIl
 			Assert.AreEqual (subexpr [2], gen.U16Type);
 		}
 
+		static public void Test8(){
+			var gen = new IlGen();
+			Uid arg;
+			var f = gen.DefineFunction ("test7", gen.F.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
+
+			var cb = new CodeBuilder (gen, gen.Sub ());
+			cb.PushArgument();
+			cb.SetString ("+");
+			cb.PushArgument ();
+			cb.SetString ("5");
+			var opt = cb.GetOptions ().First (option => option == gen.I32Type);
+			cb.SelectOption (opt);
+			cb.InsertExpr ();
+			cb.PushArgument ();
+			cb.SetString ("9");
+			var opt2 = cb.GetOptions ().First (option => option == gen.I32Type);
+			cb.SelectOption (opt2);
+			cb.InsertExpr ();
+			cb.SelectedIndex = 0;
+			cb.InsertExpr ();
+			var result = (int)cb.Build ().Invoke (null, null);
+			Assert.AreEqual (result, 14);
+		}
+
+		public static int PrintInt(int x){
+			Console.WriteLine ("X: {0}", x);
+			return x;
+		}
+
+
+
+		static public void Test9(){
+			var gen = new IlGen();
+			var method = typeof(IlGenTest).GetMethod ("PrintInt", BindingFlags.Static | BindingFlags.Public);
+			var print = gen.DefineFunction ("printint", gen.I32Type, gen.Arg("X", gen.I32Type));
+			gen.FunctionInvocation.Add (print, method);
+
+			var sub = gen.Sub;
+			Uid arg;
+			var fibid = gen.DefineFunction ("CountDown", gen.I32Type, arg = gen.Arg("X", gen.I32Type));
+			gen.DefineFcnBody (fibid, sub(gen.F.If, arg, sub(fibid, sub(print, sub(gen.Subtract, arg, gen.DefineConstant(gen.I32Type, 1)))), arg));
+			MethodInfo m = gen.GenerateIL (fibid);
+			var x = m.Invoke (null, new object[]{5});// recursive.
+			Assert.AreEqual ((int)x, 0);
+		}
+
         static public IlGen Run ()
 		{
 			var gen = new IlGen ();

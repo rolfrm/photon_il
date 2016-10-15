@@ -18,6 +18,7 @@ namespace PhotonIl
 			gen.AddMacro (ArrayCount, arrayCount);
 			gen.AddMacro (ArrayAccess, arrayAccess);
 			gen.AddMacro (Cast, cast);
+			gen.AddMacro (If, ifmacro);
 			gen.TypeGetters.Add (getCSType);
 
 			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
@@ -34,6 +35,7 @@ namespace PhotonIl
 		public readonly Uid ArrayAccess;
 		public readonly Uid GetSubExpressions;
 		public readonly Uid Cast;
+		public readonly Uid If;
 
 		public readonly Dict<Type, Uid> arrayTypes = new Dict<Type, Uid>();
 		public readonly Dict<Uid, Uid> arrayElemTypes = new Dict<Uid, Uid>();
@@ -125,6 +127,36 @@ namespace PhotonIl
 
 		Uid notImplemented(Uid expr){
 			throw new NotImplementedException();
+		}
+
+		public static Uid ifmacro(Uid expr){
+			var s = Interact.Current.SubExpressions.Get (expr);
+			Uid rtype = Interact.CallOn (s [1]);
+			var gen = Interact.Current;
+			if (rtype == gen.VoidType)
+				throw new Exception ("a value returning function must be used for the first argument to if");
+			var label = Interact.IL.DefineLabel ();
+			var endlabel = Interact.IL.DefineLabel ();
+			LocalBuilder loc = null;
+			Interact.IL.Emit (OpCodes.Brfalse, label);
+			Uid r1 = Interact.CallOn (s [2]);
+			if (r1 != gen.VoidType) {
+				loc = Interact.IL.DeclareLocal (gen.GetCSType (r1));
+				Interact.IL.Emit (OpCodes.Stloc, loc);
+			}
+			Interact.IL.Emit (OpCodes.Br, endlabel);
+			Interact.IL.MarkLabel (label);
+			Uid r2 = Interact.CallOn (s [3]);
+			if (loc != null && r2 == r1) {
+				Interact.IL.Emit (OpCodes.Stloc, loc);
+			}else if(r2 != gen.VoidType)
+				Interact.IL.Emit (OpCodes.Pop);
+			Interact.IL.MarkLabel (endlabel);
+			if (r1 == r2 && r1 != gen.VoidType) {
+				Interact.IL.Emit (OpCodes.Ldloc, loc);
+				return r1;
+			}
+			return gen.VoidType;
 		}
 	}
 }

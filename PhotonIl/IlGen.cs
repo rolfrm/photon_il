@@ -385,6 +385,7 @@ namespace PhotonIl
                 MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
                     GetCSType(FunctionReturnType.Get(ftype)),
 					FunctionArguments.Get(ftype).Select(arg => GetCSType(ArgumentType.Get(arg))).ToArray());
+				FunctionInvocation [expr] = fn;
                 var ilgen = fn.GetILGenerator();
 				Uid rt;
 				using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
@@ -405,7 +406,8 @@ namespace PhotonIl
                 fn.InitLocals = true;
                 module.CreateGlobalFunctions();
                 var m = t.GetMethod(fn.Name);
-                FunctionInvocation.Add(expr, m);
+				FunctionInvocation[expr] = m;
+				asmBuild.Save (string.Format ("F_{0}.dll", expr));
                 return m;
             }
             else
