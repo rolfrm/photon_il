@@ -14,11 +14,13 @@ namespace PhotonIl
 			ArrayCount = gen.Sym ("Array Count");
 			ArrayAccess = gen.Sym ("Array Access");
 			Cast = gen.Sym ("Cast");
+			PrintAny = gen.Sym ("print");
 			gen.AddMacro (CreateArray, createArray);
 			gen.AddMacro (ArrayCount, arrayCount);
 			gen.AddMacro (ArrayAccess, arrayAccess);
 			gen.AddMacro (Cast, cast);
 			gen.AddMacro (If, ifmacro);
+			gen.AddMacro (PrintAny, Printany);
 			gen.TypeGetters.Add (getCSType);
 
 			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
@@ -36,7 +38,7 @@ namespace PhotonIl
 		public readonly Uid GetSubExpressions;
 		public readonly Uid Cast;
 		public readonly Uid If;
-
+		public readonly Uid PrintAny;
 		public readonly Dict<Type, Uid> arrayTypes = new Dict<Type, Uid>();
 		public readonly Dict<Uid, Uid> arrayElemTypes = new Dict<Uid, Uid>();
 
@@ -58,7 +60,7 @@ namespace PhotonIl
 			Uid numtype = Interact.CallOn (s [2]);
 			if (gen.types.Get (numtype) != PhotonIl.Types.Primitive)
 				throw new Exception ("count not a number type");
-			Interact.IL.Emit (System.Reflection.Emit.OpCodes.Newarr, elemType);
+			Interact.Emit (System.Reflection.Emit.OpCodes.Newarr, elemType);
 
 			if (!arrayTypes.ContainsKey (elemType)) {
 				arrayTypes.Add (elemType, Uid.CreateNew ());
@@ -74,8 +76,8 @@ namespace PhotonIl
 				throw new Exception ();
 			
 			var arrayType = Interact.CallOn (s [1]);
-			Interact.IL.Emit (OpCodes.Ldlen);	
-			Interact.IL.Emit (OpCodes.Conv_U4);
+			Interact.Emit (OpCodes.Ldlen);	
+			Interact.Emit (OpCodes.Conv_U4);
 			return gen.U32Type;
 		}
 
@@ -90,11 +92,11 @@ namespace PhotonIl
 				var elemType2 = Interact.CallOn (valueExpr);
 				if (elemType1 != elemType2)
 					throw new CompilerError (expr, "Differing types in expression.");
-				Interact.IL.Emit (OpCodes.Stelem, gen.GetCSType (elemType2));
+				Interact.Emit (OpCodes.Stelem, gen.GetCSType (elemType2));
 				gen.SetExprs.Remove (expr);
 				return gen.VoidType;
 			} else {
-				Interact.IL.Emit (OpCodes.Ldelem, gen.GetCSType (elemType1));
+				Interact.Emit (OpCodes.Ldelem, gen.GetCSType (elemType1));
 				return elemType1;
 			}
 		}
@@ -121,7 +123,7 @@ namespace PhotonIl
 			int idx = Array.IndexOf (Types, type);
 			if (idx == -1)
 				throw new CompilerError (expr, "Unable to cast from {0} to {1}", Interact.Current.GetCSType (rtype), Interact.Current.GetCSType (s [1])); 
-			Interact.IL.Emit (Opcodes [idx]);
+			Interact.Emit (Opcodes [idx]);
 			return s [1];
 		}
 
@@ -135,28 +137,43 @@ namespace PhotonIl
 			var gen = Interact.Current;
 			if (rtype == gen.VoidType)
 				throw new Exception ("a value returning function must be used for the first argument to if");
-			var label = Interact.IL.DefineLabel ();
-			var endlabel = Interact.IL.DefineLabel ();
+			var label = Interact.DefineLabel ();
+			var endlabel = Interact.DefineLabel ();
 			LocalBuilder loc = null;
-			Interact.IL.Emit (OpCodes.Brfalse, label);
+			Interact.Emit (OpCodes.Brfalse, label);
 			Uid r1 = Interact.CallOn (s [2]);
 			if (r1 != gen.VoidType) {
-				loc = Interact.IL.DeclareLocal (gen.GetCSType (r1));
-				Interact.IL.Emit (OpCodes.Stloc, loc);
+				loc = Interact.DeclareLocal (gen.GetCSType (r1));
+				Interact.Emit (OpCodes.Stloc, loc);
 			}
-			Interact.IL.Emit (OpCodes.Br, endlabel);
-			Interact.IL.MarkLabel (label);
+			Interact.Emit (OpCodes.Br, endlabel);
+			Interact.MarkLabel (label);
 			Uid r2 = Interact.CallOn (s [3]);
 			if (loc != null && r2 == r1) {
-				Interact.IL.Emit (OpCodes.Stloc, loc);
+				Interact.Emit (OpCodes.Stloc, loc);
 			}else if(r2 != gen.VoidType)
-				Interact.IL.Emit (OpCodes.Pop);
-			Interact.IL.MarkLabel (endlabel);
+				Interact.Emit (OpCodes.Pop);
+			Interact.MarkLabel (endlabel);
 			if (r1 == r2 && r1 != gen.VoidType) {
-				Interact.IL.Emit (OpCodes.Ldloc, loc);
+				Interact.Emit (OpCodes.Ldloc, loc);
 				return r1;
 			}
 			return gen.VoidType;
+		}
+
+		public static void PrintAny2(object obj){
+			Console.Write (string.Format ("{0}", obj));
+		}
+
+		public static Uid Printany(Uid expr)
+		{
+			var sub = Interact.Current.SubExpressions.Get(expr);
+			Uid t = Interact.CallOn (sub[1]);
+			Interact.Emit (OpCodes.Dup);
+			Interact.Emit (OpCodes.Box, Interact.Current.GetCSType(t));	
+			Interact.Emit (OpCodes.Call, typeof(Functions).GetMethod ("PrintAny2", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static));
+			return t;
+				
 		}
 	}
 }

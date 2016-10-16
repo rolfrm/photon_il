@@ -230,38 +230,12 @@ namespace PhotonIl
 			Assert.AreEqual (subexpr [2], gen.U16Type);
 		}
 
-		static public void Test8(){
-			var gen = new IlGen();
-			var f = gen.DefineFunction ("test7", gen.F64Type);
-			var fbody = gen.Sub ();
-			gen.DefineFcnBody (f, fbody);
-			var cb = new CodeBuilder (gen, fbody);
-			cb.PushArgument();
-			cb.SetString ("+");
-			cb.PushArgument ();
-			cb.SetString ("5.3");
-			var opt = cb.GetOptions ().First (option => option == gen.F64Type);
-			cb.SelectOption (opt);
-			cb.PushArgument ();
-			cb.SetString ("9.5");
-			var opt2 = cb.GetOptions ().First (option => option == gen.F64Type);
-			cb.SelectOption (opt2);
-			cb.SelectedIndex = 0;
-			var opt3 = cb.GetOptions ().First ();
-			cb.SelectOption (opt3);
-			var method = gen.GenerateIL (f);
-			var result = (double)method.Invoke (null, null);
-			Assert.AreEqual (result, 5.3 + 9.5);
-		}
-
 		public static int PrintInt(int x){
 			Console.WriteLine ("X: {0}", x);
 			return x;
 		}
 
-
-
-		static public void Test9(){
+		static public void Test8(){
 			var gen = new IlGen();
 			var method = typeof(IlGenTest).GetMethod ("PrintInt", BindingFlags.Static | BindingFlags.Public);
 			var print = gen.DefineFunction ("printint", gen.I32Type, gen.Arg("X", gen.I32Type));
@@ -274,6 +248,63 @@ namespace PhotonIl
 			MethodInfo m = gen.GenerateIL (fibid);
 			var x = m.Invoke (null, new object[]{5});// recursive.
 			Assert.AreEqual ((int)x, 0);
+		}
+
+		static public void Test9(){
+			var gen = new IlGen();
+			var f = gen.DefineFunction ("CodeBuilderTest", gen.F64Type);
+			var cb = new CodeBuilder (gen, f);
+			cb.PushArgument();
+			cb.SetString ("+");
+			cb.PushArgument ();
+			{
+				cb.CreateSub ();
+				cb.Enter ();
+				cb.PushArgument ();
+				cb.SetString ("+");
+				var opt3 = cb.GetOptions ().First ();
+				cb.SelectOption (opt3);
+				cb.PushArgument ();
+				cb.SetString ("2.1");
+				var opt = cb.GetOptions ().First (option => option == gen.F64Type);
+				cb.SelectOption (opt);
+				cb.PushArgument ();
+				cb.SetString ("3.2");
+				var opt2 = cb.GetOptions ().First (option => option == gen.F64Type);
+				cb.SelectOption (opt2);
+				cb.Exit ();
+			}
+			{
+				cb.PushArgument ();
+				cb.SetString ("9.5");
+				var opt2 = cb.GetOptions ().First (option => option == gen.F64Type);
+				cb.SelectOption (opt2);
+				cb.SelectedIndex = 0;
+				var opt3 = cb.GetOptions ().First ();
+				cb.SelectOption (opt3);
+			}
+			var method = gen.GenerateIL (f);
+			var result = (double)method.Invoke (null, null);
+			Assert.AreEqual (result, 5.3 + 9.5);
+		}
+
+		static public void Test10(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			Uid type = gen.I32Type;
+			Uid arg = gen.Arg ("X", type);;
+			Uid rt = gen.GenExpression(sub(gen.F.If, gen.DefineConstant(type, 1),
+				sub(gen.Subtract, arg, gen.DefineConstant(type, 1)), arg), arg);
+			Assert.AreEqual (rt, type);
+		}
+		static public void Test11(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			var fibid = gen.DefineFunction ("test", gen.VoidType);
+			gen.DefineFcnBody (fibid, sub (gen.Add, gen.DefineConstant(gen.F64Type, Math.PI)));
+			MethodInfo m = gen.GenerateIL (fibid);
+			m.Invoke (null, null);
+
 		}
 	}
 

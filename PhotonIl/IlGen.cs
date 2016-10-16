@@ -42,9 +42,9 @@ namespace PhotonIl
         public Dict<Uid, string> FunctionName = new Dict<Uid, string>();
 
         public Dict<Uid, Generator> IlGenerators = new Dict<Uid, Generator>();
-        public Dict<Uid, Func<Uid, ILGenerator, IlGen, Uid>> Macros = new Dict<Uid, Func<Uid, ILGenerator, IlGen, Uid>>();
+        public Dict<Uid, Func<Uid, IlGen, Uid>> Macros = new Dict<Uid, Func<Uid, IlGen, Uid>>();
 
-        public delegate Uid Generator(Uid exprid, ILGenerator gen);
+        public delegate Uid Generator(Uid exprid);
 
 		public Uid AddPrimitive(string name, int size, Type dotNetType = null, bool is_float = false)
         {
@@ -210,7 +210,7 @@ namespace PhotonIl
 			return v;
 		}
 
-        public Uid GenSubCall(Uid expr, ILGenerator il)
+        public Uid GenSubCall(Uid expr)
         {
             {
                 var constantType = ConstantType.Get(expr);
@@ -221,13 +221,13 @@ namespace PhotonIl
                         int size = this.type_size.Get(constantType);
                         bool isfloat = this.is_floating_point.Get(constantType);
                         if (isfloat && size == 4)
-                            il.Emit(OpCodes.Ldc_R4, (float)Convert.ChangeType(ConstantValue.Get(expr), typeof(float)));
+							Interact.Emit(OpCodes.Ldc_R4, (float)Convert.ChangeType(ConstantValue.Get(expr), typeof(float)));
                         else if (isfloat && size == 8)
-                            il.Emit(OpCodes.Ldc_R8, (double)Convert.ChangeType(ConstantValue.Get(expr), typeof(double)));
+							Interact.Emit(OpCodes.Ldc_R8, (double)Convert.ChangeType(ConstantValue.Get(expr), typeof(double)));
                         else if (size <= 4)
-                            il.Emit(OpCodes.Ldc_I4, (int)Convert.ChangeType(ConstantValue.Get(expr), typeof(int)));
+							Interact.Emit(OpCodes.Ldc_I4, (int)Convert.ChangeType(ConstantValue.Get(expr), typeof(int)));
                         else if (size == 8)
-                            il.Emit(OpCodes.Ldc_I8, (long)Convert.ChangeType(ConstantValue.Get(expr), typeof(long)));
+							Interact.Emit(OpCodes.Ldc_I8, (long)Convert.ChangeType(ConstantValue.Get(expr), typeof(long)));
                         else
                             throw new Exception("Cannot load type");
                         return constantType;
@@ -238,8 +238,8 @@ namespace PhotonIl
             {
 				var variableMember = getVariable (expr);
 				if (variableMember != null) {
-					il.Emit (OpCodes.Ldnull);
-					il.Emit (OpCodes.Ldfld, variableMember);
+					Interact.Emit (OpCodes.Ldnull);
+					Interact.Emit (OpCodes.Ldfld, variableMember);
 					return variableType.Get (expr);
 				}
             }
@@ -250,17 +250,17 @@ namespace PhotonIl
                 if (ReferenceReq.Contains(expr))
                 {
 					if (local.Local != default(LocalBuilder))
-						il.Emit (OpCodes.Ldloca_S, local.Local);
+						Interact.Emit (OpCodes.Ldloca_S, local.Local);
 					else
-						il.Emit (OpCodes.Ldarga, local.ArgIndex);
+						Interact.Emit (OpCodes.Ldarga, local.ArgIndex);
                     ReferenceReq.Remove(expr);
                 }
                 else
                 {
 					if (local.Local != default(LocalBuilder))
-						il.Emit (OpCodes.Ldloc, local.Local);
+						Interact.Emit (OpCodes.Ldloc, local.Local);
 					else
-						il.Emit (OpCodes.Ldarg, local.ArgIndex);
+						Interact.Emit (OpCodes.Ldarg, local.ArgIndex);
                 }
                 return local.TypeId;
             }
@@ -270,26 +270,28 @@ namespace PhotonIl
 			{
 				var gen = Macros.Get (subexprs [0]);
 				if (gen != null)
-					return gen (expr, il, this);
+					return gen (expr, this);
 			}
 			{
-				Interact.Load (this, il);
+				
 				var gen = this.userMacros.Get (subexprs [0]);
 				if (gen != null) {
 					var ret = gen (expr);
 					if (SubExpressions.Get (ret).Count == 0)
 						return ret;
 					else
-						return GenSubCall (ret, il);
+						return GenSubCall (ret);
 				}
 			}
 
 
-            return GenCall(expr, il);
+            return GenCall(expr);
 
         }
 
         public Type GetCSType(Uid typeid) {
+			if (typeid == VoidType)
+				return typeof(void);
             if (generatedStructs.Get (typeid) != null) {
 				return generatedStructs.Get (typeid);
             } else if (types.Get(typeid) == Types.Struct) {
@@ -330,7 +332,7 @@ namespace PhotonIl
         public Dict<Uid, Type> generatedStructs = new Dict<Uid, Type>();
 
         public StackLocal<Uid> ExpectedType = new StackLocal<Uid>();
-        public Uid GenCall(Uid expr, ILGenerator il)
+        public Uid GenCall(Uid expr)
         {
             
             var subexprs = SubExpressions.Get(expr);
@@ -350,19 +352,19 @@ namespace PhotonIl
 			for (int i = 1; i < subexprs.Count; i++) {
                 using (var item = ExpectedType.WithValue(args[i - 1])) {
 
-                    Uid type = GenSubCall(subexprs[i], il);
+                    Uid type = GenSubCall(subexprs[i]);
 					if (type != ArgumentType.Get(args[i - 1]))
                         throw new CompilerError(subexprs[i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, args[i - 1], type);
-                    stlocs[i - 1] = il.DeclareLocal(GetCSType(type));
-                    il.Emit(OpCodes.Stloc, stlocs[i - 1]);
+					stlocs[i - 1] = Interact.DeclareLocal(GetCSType(type));
+					Interact.Emit(OpCodes.Stloc, stlocs[i - 1]);
                 }
             }
 
             var m = FunctionInvocation.Get(function);
 
             foreach (var loc in stlocs)
-                il.Emit(OpCodes.Ldloc, loc);
-            il.Emit(OpCodes.Call, m);
+				Interact.Emit(OpCodes.Ldloc, loc);
+			Interact.Emit(OpCodes.Call, m);
 
             return returnType;
         }
@@ -374,6 +376,23 @@ namespace PhotonIl
                 AssemblyBuilderAccess.RunAndSave);
             return a.DefineDynamicModule("myasm.dll", "DynAsm2.mod");
         }
+
+		public Uid GenExpression (Uid expr, params Uid[] arguments)
+		{
+			Interact.Load (this, null);
+			Uid rt;
+			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
+					
+				short paramIndex = 0;
+				foreach (var arg in arguments) {
+					var argname = ArgumentName.Get (arg) ?? ("arg_" + arg);
+					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
+					paramIndex += 1;
+				}
+				rt = GenSubCall (expr);
+			}
+			return rt;
+		}
 
         public MethodInfo GenerateIL(Uid expr)
         {
@@ -387,12 +406,13 @@ namespace PhotonIl
             var ftype = expr;
             if (body != Uid.Default)
             {
-
+				var rtype = FunctionReturnType.Get (ftype);
                 MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
-                    GetCSType(FunctionReturnType.Get(ftype)),
+                    GetCSType(rtype),
 					FunctionArguments.Get(ftype).Select(arg => GetCSType(ArgumentType.Get(arg))).ToArray());
 				FunctionInvocation [expr] = fn;
                 var ilgen = fn.GetILGenerator();
+				Interact.Load (this, ilgen);
 				Uid rt;
 				using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
 					var fargs = FunctionArguments.Get (expr);
@@ -403,12 +423,15 @@ namespace PhotonIl
 						localSymbols.Value.Add (arg, new LocalSymData{ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
 						paramIndex += 1;
 					}
-					rt = GenSubCall (body, ilgen);
+					rt = GenSubCall (body);
 				}
 				var rtt = GetCSType (rt);
-				if (rt != FunctionReturnType.Get(ftype))
+				if ( rtype != VoidType && rt != rtype)
 					throw new Exception ("Return types does not match");
-                ilgen.Emit(OpCodes.Ret);
+				if (rtype == VoidType && rt != VoidType) {
+					ilgen.Emit (OpCodes.Pop);
+				} 
+				ilgen.Emit (OpCodes.Ret);
                 Type t = tb.CreateType();
                 fn.InitLocals = true;
                 module.CreateGlobalFunctions();
@@ -424,7 +447,7 @@ namespace PhotonIl
 
                 var ilgen = fn.GetILGenerator();
                 using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                    GenSubCall(expr, ilgen);
+                    GenSubCall(expr);
                 ilgen.Emit(OpCodes.Ret);
                 Type t = tb.CreateType();
                 var runm = t.GetMethod("run");
@@ -484,7 +507,7 @@ namespace PhotonIl
 
         HashSet<Uid> ReferenceReq = new HashSet<Uid>();
 
-        public static Uid genStructAccess(Uid expr, ILGenerator il, IlGen gen)
+        public static Uid genStructAccess(Uid expr, IlGen gen)
         {
             var sexprs = gen.SubExpressions.Get(expr);
             var structid = sexprs[1];
@@ -496,29 +519,29 @@ namespace PhotonIl
             {
                 gen.SetExprs.Remove(expr);
                 gen.ReferenceReq.Add(sexprs[3]);
-                gen.GenSubCall(sexprs[3], il);
+                gen.GenSubCall(sexprs[3]);
                 if (gen.ReferenceReq.Contains(sexprs[3]))
                     throw new Exception("Unable to access right valaue");
-                il.Emit(OpCodes.Dup);
-                gen.GenSubCall(valueExpr, il);
-                il.Emit(OpCodes.Stfld, field);
-                il.Emit(OpCodes.Ldfld, field);
+				Interact.Emit(OpCodes.Dup);
+                gen.GenSubCall(valueExpr);
+				Interact.Emit(OpCodes.Stfld, field);
+				Interact.Emit(OpCodes.Ldfld, field);
                 
             }
             else
             {
-                gen.GenSubCall(sexprs[3], il);
-                il.Emit(OpCodes.Ldfld, field);
+                gen.GenSubCall(sexprs[3]);
+				Interact.Emit(OpCodes.Ldfld, field);
             }
 
             return gen.ArgumentType.Get(memberid);
         }
 
         Uid InitStruct;
-        public static Uid GenStruct(Uid expr, ILGenerator il, IlGen gen)
+        public static Uid GenStruct(Uid expr, IlGen gen)
         {
             var subexprs = gen.SubExpressions.Get(expr);
-            gen.GenStructConstructorIl(il, subexprs[1]);
+            gen.GenStructConstructorIl(subexprs[1]);
             return subexprs[1];
         }
         public Uid[] GetStructConstructor(Uid struct_id) {
@@ -531,8 +554,8 @@ namespace PhotonIl
             return new[] { InitStruct, struct_id };
         }
 
-        void GenStructConstructorIl(ILGenerator il, Uid structid) {
-            il.Emit(OpCodes.Ldloc, il.DeclareLocal(GetCSType(structid)));
+        void GenStructConstructorIl(Uid structid) {
+			Interact.Emit(OpCodes.Ldloc, Interact.DeclareLocal(GetCSType(structid)));
         }
 
         FieldInfo getNetFieldInfo(Uid member, Uid structType)
@@ -574,25 +597,25 @@ namespace PhotonIl
             }
         }
 
-        public Uid genProgn(Uid expr, ILGenerator il, IlGen gen)
+        public Uid genProgn(Uid expr, IlGen gen)
         {
             var exprs = gen.SubExpressions.Get(expr);
 			if (exprs.Count == 1)
                 return VoidType;
 			if(exprs.Count == 2)
             {
-                return GenSubCall(exprs[1], il);
+                return GenSubCall(exprs[1]);
             }
 			for (int i = 1; i < exprs.Count; i++)
             {
-                Uid type = GenSubCall(exprs[i], il);
+                Uid type = GenSubCall(exprs[i]);
 				if (i == exprs.Count - 1)
                 {
                     return type;
                 }
                 else if(type != VoidType)
                 {
-                    il.Emit(OpCodes.Pop);
+					Interact.Emit(OpCodes.Pop);
                 }
             }
             Debug.Fail("Unreachable");
@@ -619,18 +642,18 @@ namespace PhotonIl
 			get { return genBaseFunctor (OpCodes.Div, "/"); }
 		}
 
-		public Uid genAdd(OpCode opcode, Uid expr, ILGenerator il, IlGen gen )
+		public Uid genAdd(OpCode opcode, Uid expr, IlGen gen )
 		{
 			var subs = gen.SubExpressions.Get(expr);
 			if (subs.Count < 2)
 				throw new Exception("Invalid number of arguments for +");
-			Uid type = GenSubCall(subs[1], il);
+			Uid type = GenSubCall(subs[1]);
 			for(int i = 2; i < subs.Count; i++)
 			{
-				Uid t2 = GenSubCall(subs[i], il);
+				Uid t2 = GenSubCall(subs[i]);
 				if (type != t2)
 					throw new Exception("Invalid type for +");
-				il.Emit(opcode);
+				Interact.Emit(opcode);
 			}
 			return type;
 		}
@@ -642,7 +665,7 @@ namespace PhotonIl
 			if (BaseOpCodes.ContainsKey (c) == false) {
 				Uid id = Uid.CreateNew ();
 				BaseOpCodes.Add (c, id);
-				Macros.Add(id, (x, y, z) => genAdd (c, x, y, z));
+				Macros.Add(id, (x, z) => genAdd (c, x, z));
 				MacroNames.Add (id, name);
 
 			}
@@ -683,12 +706,12 @@ namespace PhotonIl
         // Setf needs to communicate with whatever the inner form is for that
         // to work. 
         public Dict<Uid,Uid> SetExprs = new Dict<Uid,Uid>();
-        public Uid genSet(Uid expr, ILGenerator il, IlGen gen)
+        public Uid genSet(Uid expr, IlGen gen)
         {
             var exprs = SubExpressions.Get(expr);
             // set, accessor, value
             SetExprs.Add(exprs[1],exprs[2]);
-            Uid typeid2 = GenSubCall(exprs[1], il);
+            Uid typeid2 = GenSubCall(exprs[1]);
             if (SetExprs.ContainsKey(exprs[1]))
                 throw new Exception("Sub expression does not support set");
             return typeid2;
@@ -703,14 +726,14 @@ namespace PhotonIl
 
         StackLocal<Dict<Uid, LocalSymData>> localSymbols = new StackLocal<Dict<Uid, LocalSymData>>(new Dict<Uid, LocalSymData>());
 
-        public Uid genLet(Uid expr, ILGenerator il, IlGen gen)
+        public Uid genLet(Uid expr, IlGen gen)
         {
             var exprs = gen.SubExpressions.Get(expr);
             Debug.Assert(Symbols.Contains(exprs[1]));
-            Uid type = GenSubCall(exprs[2], il);
-            var local = il.DeclareLocal(GetCSType(type));
-            il.Emit(OpCodes.Dup);
-            il.Emit(OpCodes.Stloc, local);
+            Uid type = GenSubCall(exprs[2]);
+			var local = Interact.DeclareLocal(GetCSType(type));
+			Interact.Emit(OpCodes.Dup);
+			Interact.Emit(OpCodes.Stloc, local);
             localSymbols.Value.Add(exprs[1], new LocalSymData { Local = local, TypeId = type });
             return type;
         }
@@ -742,6 +765,10 @@ namespace PhotonIl
 			Assert.IsTrue (m.IsStatic && m.IsPublic);
 			userMacros.Add (id, expr => (Uid)m.Invoke (null, null));
 			MacroNames.Add (id, m.Name);
+		}
+
+		public Uid GetFunctionBody(Uid fcn){
+			return functionBody.Get (fcn);
 		}
 	}
 

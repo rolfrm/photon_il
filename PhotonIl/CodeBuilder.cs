@@ -18,7 +18,7 @@ namespace PhotonIl
 		}
 
 		IlGen gen;
-
+		public Uid Function;
 		public Uid SelectedExpression;
 		public int SelectedIndex;
 		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Count; } }
@@ -28,9 +28,18 @@ namespace PhotonIl
 			}
 		}
 		Dict<ASTItem,string> Replacements = new Dict<ASTItem, string> ();
-		public CodeBuilder (IlGen gen, Uid expr = default(Uid))
+		public CodeBuilder (IlGen gen, Uid fid = default(Uid))
 		{
-			SelectedExpression = expr;
+			if (fid == Uid.Default) {
+				fid = Uid.CreateNew ();
+			}
+			Function = fid;
+
+			Uid body = gen.Sub ();
+
+			gen.DefineFcnBody (fid, body);
+
+			SelectedExpression = body;
 			SelectedIndex = -1;
 			this.gen = gen;
 		}
@@ -53,7 +62,7 @@ namespace PhotonIl
 
 		public void SetString(string str){
 			var item = new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex };
-			Replacements.Add (item,str);
+			Replacements[item] = str;
 		}
 
 		public string GetString(){
@@ -81,6 +90,7 @@ namespace PhotonIl
 			if (byte.TryParse (str, out rb))
 				yield return gen.U8Type;
 			foreach (var kv in gen.FunctionName)
+
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
 			foreach (var kv in gen.variableName)
@@ -106,6 +116,47 @@ namespace PhotonIl
 			}
 
 			sexp [SelectedIndex] = option;	
+		}
+
+		public Uid CreateSub(){
+			var exprs = gen.SubExpressions.Get (SelectedExpression);
+			exprs [SelectedIndex] = Uid.CreateNew ();
+			return exprs [SelectedIndex];
+		}
+
+		public void Enter(){
+			var exprs = gen.SubExpressions.Get (SelectedExpression);
+			SelectedExpression = exprs [SelectedIndex];
+
+			SelectedIndex = -1;
+		}
+
+		public void Exit(){
+			var parent = gen.SubExpressions.Entries.FirstOrDefault (x => x.Value.Contains (SelectedExpression));
+			var idx = parent.Value.IndexOf (SelectedExpression);
+			SelectedExpression = parent.Key;
+			SelectedIndex = idx;
+		}
+
+		public MethodInfo Build(){
+			
+			gen.GenExpression (Function);
+			return gen.GenerateIL (Function);
+		}
+
+		public void BuildAndRun(){
+			
+			var body = gen.GetFunctionBody (Function);
+			Uid ret = gen.GenExpression (body);
+
+			Uid fcn = gen.DefineFunction ("run", gen.VoidType);
+			if (ret != gen.VoidType) {
+				var body2 = gen.Sub (gen.F.PrintAny, body);
+				gen.DefineFcnBody (fcn, body2);
+			}
+			var m = gen.GenerateIL (fcn);
+			m.Invoke (null, null);
+
 		}
 	}
 }
