@@ -21,7 +21,7 @@ namespace PhotonIl
 
 		public Uid SelectedExpression;
 		public int SelectedIndex;
-		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Length; } }
+		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Count; } }
 		public string CurrentString{
 			get { 
 				return Replacements.Get (new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex });
@@ -39,7 +39,7 @@ namespace PhotonIl
 		{
 			PushArgument ();
 			var sexp = gen.SubExpressions.Get (SelectedExpression);
-			for (int i = sexp.Length - 1; i > index; i--)
+			for (int i = sexp.Count - 1; i > index; i--)
 				sexp [i] = sexp [i - 1];
 			sexp [index] = Uid.Default;
 			SelectedIndex = index;
@@ -70,6 +70,8 @@ namespace PhotonIl
 			ushort rus;
 			if (float.TryParse (str, out rf))
 				yield return gen.F32Type;
+			if (double.TryParse (str, out rd))
+				yield return gen.F64Type;
 			if (int.TryParse (str, out ri))
 				yield return gen.I32Type;
 			if (uint.TryParse (str, out ru))
@@ -84,7 +86,9 @@ namespace PhotonIl
 			foreach (var kv in gen.variableName)
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
-			
+			foreach (var kv in gen.MacroNames)
+				if (kv.Value.StartsWith (str))
+					yield return kv.Key;
 		}
 
 		public Uid[] GetOptions(){
@@ -93,17 +97,16 @@ namespace PhotonIl
 
 		public void SelectOption(Uid option){
 			var sexp = gen.SubExpressions.Get (SelectedExpression);
-			sexp [SelectedIndex] = option;
-		}
+			{
+				Type t = gen.generatedStructs.Get (option);
+				if (t != default(Type)) {
+					object obj = Convert.ChangeType (CurrentString, t);
+					option = gen.DefineConstant (option, obj);
+				}
+			}
 
-		public void InsertExpr(){
-			throw new NotImplementedException();
+			sexp [SelectedIndex] = option;	
 		}
-
-		public MethodInfo Build(){
-			throw new NotImplementedException();
-		}
-
 	}
 }
 

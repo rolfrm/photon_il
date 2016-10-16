@@ -35,33 +35,6 @@ namespace PhotonIl
 			return expr2;
 		}
 
-		static public IlGen Run2(){
-			var gen = new IlGen ();
-
-			var sub = gen.Sub;
-
-			Uid sarg1, sarg2;
-			var typeId = gen.DefineStruct (gen.DefineVariable(gen.StringType, null , "vec2i"), 
-				sarg1 = gen.DefineArgument ("x", gen.I32Type), 
-				sarg2 = gen.DefineArgument ("y", gen.I32Type));
-
-			var bareStruct = gen.DefineFunction("<>", gen.I32Type);
-			gen.DefineFcnBody(bareStruct,sub(gen.GetStructConstructor(typeId)));
-            
-			var addvec2 = gen.DefineFunction("plus", gen.I32Type);
-			Uid sym = gen.Sym("x");
-
-			gen.DefineFcnBody (addvec2, sub (gen.Progn,
-				               sub (gen.Let, sym, sub (gen.GetStructConstructor (typeId))),
-				               sub (gen.Set, gen.GetStructAccessor (sarg1, sym), gen.DefineVariable (gen.I32Type, null, 5))
-				, gen.GetStructAccessor (sarg2, sym)
-			               ));
-            
-            var m = gen.GenerateIL(addvec2);
-            m.Invoke(null, null);
-			return gen;
-		}
-
 		static public void Test0(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
@@ -170,11 +143,11 @@ namespace PhotonIl
 		static Uid swapMacro(Uid expr){
 			var gen = Interact.Current;
 			var sub = gen.SubExpressions.Get (expr);
-			if (sub.Length < 2)
+			if (sub.Count < 2)
 				throw new Exception ("Err");
 			var s = sub.Skip(1).ToArray ();
-			s [sub.Length - 1 - 1] = sub [sub.Length - 2];
-			s [sub.Length - 2 - 1] = sub [sub.Length - 1];
+			s [sub.Count - 1 - 1] = sub [sub.Count - 2];
+			s [sub.Count - 2 - 1] = sub [sub.Count - 1];
 			return gen.Sub (s);
 		}
 
@@ -259,26 +232,26 @@ namespace PhotonIl
 
 		static public void Test8(){
 			var gen = new IlGen();
-			Uid arg;
-			var f = gen.DefineFunction ("test7", gen.F.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
-
-			var cb = new CodeBuilder (gen, gen.Sub ());
+			var f = gen.DefineFunction ("test7", gen.F64Type);
+			var fbody = gen.Sub ();
+			gen.DefineFcnBody (f, fbody);
+			var cb = new CodeBuilder (gen, fbody);
 			cb.PushArgument();
 			cb.SetString ("+");
 			cb.PushArgument ();
-			cb.SetString ("5");
-			var opt = cb.GetOptions ().First (option => option == gen.I32Type);
+			cb.SetString ("5.3");
+			var opt = cb.GetOptions ().First (option => option == gen.F64Type);
 			cb.SelectOption (opt);
-			//cb.InsertExpr ();
 			cb.PushArgument ();
-			cb.SetString ("9");
-			var opt2 = cb.GetOptions ().First (option => option == gen.I32Type);
+			cb.SetString ("9.5");
+			var opt2 = cb.GetOptions ().First (option => option == gen.F64Type);
 			cb.SelectOption (opt2);
-			cb.InsertExpr ();
 			cb.SelectedIndex = 0;
-			cb.InsertExpr ();
-			var result = (int)cb.Build ().Invoke (null, null);
-			Assert.AreEqual (result, 14);
+			var opt3 = cb.GetOptions ().First ();
+			cb.SelectOption (opt3);
+			var method = gen.GenerateIL (f);
+			var result = (double)method.Invoke (null, null);
+			Assert.AreEqual (result, 5.3 + 9.5);
 		}
 
 		public static int PrintInt(int x){
@@ -301,41 +274,6 @@ namespace PhotonIl
 			MethodInfo m = gen.GenerateIL (fibid);
 			var x = m.Invoke (null, new object[]{5});// recursive.
 			Assert.AreEqual ((int)x, 0);
-		}
-
-        static public IlGen Run ()
-		{
-			var gen = new IlGen ();
-			var v1 = gen.DefineVariable (gen.U8Type, "test", (byte)55);
-			Uid ftype = gen.DefineFunctionType ();
-			gen.AddFunctionArg (ftype, gen.U8Type);
-
-			Uid ftype2 = gen.DefineFunctionType ();
-			gen.AddFunctionArg (ftype2, gen.U8Type);
-			gen.AddFunctionArg (ftype2, gen.U8Type);
-			gen.FunctionReturnType.Add (ftype2, gen.U8Type);
-
-			var f2 = gen.DefineFunction ("add", ftype2);
-			gen.FunctionInvocation.Add (f2, typeof(IlGenTest).GetMethod ("add", BindingFlags.Static | BindingFlags.Public));
-
-			var f1 = gen.DefineFunction ("printValue", ftype);
-
-			var method = typeof(IlGenTest).GetMethod ("printValue", BindingFlags.Static | BindingFlags.Public);
-			Debug.Assert (method != null);
-			gen.FunctionInvocation.Add (f1, method);
-			var expr = gen.CreateExpression (IlGen.CallExpression);
-			gen.AddSubExpression (expr, f2);
-			gen.AddSubExpression (expr, v1);
-			gen.AddSubExpression (expr, v1);
-
-			var expr2 = gen.CreateExpression (IlGen.CallExpression);
-
-			gen.AddSubExpression (expr2, f1);
-			gen.AddSubExpression (expr2, expr);
-
-			var result = gen.GenerateIL (expr2);
-            result.Invoke(null, null);
-			return gen;
 		}
 	}
 

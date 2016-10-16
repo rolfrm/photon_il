@@ -52,7 +52,7 @@ namespace PhotonIl
 		}
 
 		Uid createArray(Uid expr){
-			Uid[] s = gen.SubExpressions.Get (expr);
+			List<Uid> s = gen.SubExpressions.Get (expr);
 			var elemType = gen.GetCSType (s [1]);
 
 			Uid numtype = Interact.CallOn (s [2]);
@@ -69,8 +69,8 @@ namespace PhotonIl
 		}
 
 		Uid arrayCount(Uid expr){
-			Uid[] s = gen.SubExpressions.Get (expr);
-			if (s.Length != 2)
+			List<Uid> s = gen.SubExpressions.Get (expr);
+			if (s.Count != 2)
 				throw new Exception ();
 			
 			var arrayType = Interact.CallOn (s [1]);
@@ -105,7 +105,7 @@ namespace PhotonIl
 
 		public static Uid[] getSubExpressions(Uid expr){
 			
-			return Interact.Current.SubExpressions.Get (expr);
+			return Interact.Current.SubExpressions.Get (expr).ToArray();
 		}
 
 		static Type[] Types = new Type[]

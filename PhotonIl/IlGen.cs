@@ -105,6 +105,9 @@ namespace PhotonIl
             IlGenerators.Add(CallExpression, GenCall);
             Debug.Assert(this.type_size.Get(U8Type) == 1);
 			F = new Functions (this);
+
+			Add.ToString ();Subtract.ToString ();Divide.ToString ();Multiply.ToString ();
+
         }
 
 		public Uid getPhotonType(Type t){
@@ -221,7 +224,7 @@ namespace PhotonIl
                             il.Emit(OpCodes.Ldc_R4, (float)Convert.ChangeType(ConstantValue.Get(expr), typeof(float)));
                         else if (isfloat && size == 8)
                             il.Emit(OpCodes.Ldc_R8, (double)Convert.ChangeType(ConstantValue.Get(expr), typeof(double)));
-                        if (size <= 4)
+                        else if (size <= 4)
                             il.Emit(OpCodes.Ldc_I4, (int)Convert.ChangeType(ConstantValue.Get(expr), typeof(int)));
                         else if (size == 8)
                             il.Emit(OpCodes.Ldc_I8, (long)Convert.ChangeType(ConstantValue.Get(expr), typeof(long)));
@@ -262,7 +265,7 @@ namespace PhotonIl
                 return local.TypeId;
             }
             var subexprs = SubExpressions.Get(expr);
-            if (subexprs.Length == 0)
+			if (subexprs.Count == 0)
                 throw new Exception("Invalid expression");
 			{
 				var gen = Macros.Get (subexprs [0]);
@@ -274,7 +277,7 @@ namespace PhotonIl
 				var gen = this.userMacros.Get (subexprs [0]);
 				if (gen != null) {
 					var ret = gen (expr);
-					if (SubExpressions.Get (ret).Length == 0)
+					if (SubExpressions.Get (ret).Count == 0)
 						return ret;
 					else
 						return GenSubCall (ret, il);
@@ -340,11 +343,11 @@ namespace PhotonIl
 			var args = FunctionArguments.Get(function);
             var returnType = FunctionReturnType.Get(mt);
 
-            if (args.Length != subexprs.Length - 1)
+			if (args.Count != subexprs.Count - 1)
                 throw new Exception("Unsupported number of arguments");
 
-            LocalBuilder[] stlocs = new LocalBuilder[subexprs.Length - 1];
-            for (int i = 1; i < subexprs.Length; i++) {
+			LocalBuilder[] stlocs = new LocalBuilder[subexprs.Count - 1];
+			for (int i = 1; i < subexprs.Count; i++) {
                 using (var item = ExpectedType.WithValue(args[i - 1])) {
 
                     Uid type = GenSubCall(subexprs[i], il);
@@ -535,22 +538,10 @@ namespace PhotonIl
         FieldInfo getNetFieldInfo(Uid member, Uid structType)
         {
             var args = structMembers.Get(structType);
-            var idx = Array.IndexOf(args, member);
+			var idx = args.IndexOf(member);
             return GetCSType(structType).GetFields()[idx];
         }
 
-
-        /*public Uid GetFunctionType(Uid returnType, params Uid[] argTypes) {
-            var existing = FunctionReturnType.Where(x => x.Value == returnType)
-                .FirstOrDefault(x => Enumerable.SequenceEqual(argTypes, FunctionArgTypes.Get(x.Key))).Key;
-            if (existing != Uid.Default)
-                return existing;
-            var @new = Uid.CreateNew();
-            if (returnType != VoidType)
-                FunctionReturnType.Add(@new, returnType);
-            FunctionArgTypes.Add(@new, argTypes);
-            return @new;
-        }*/
 
         MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid>();
         public Uid DefineFunction(string name, Uid returnType, params Uid[] arguments) {
@@ -586,16 +577,16 @@ namespace PhotonIl
         public Uid genProgn(Uid expr, ILGenerator il, IlGen gen)
         {
             var exprs = gen.SubExpressions.Get(expr);
-            if (exprs.Length == 1)
+			if (exprs.Count == 1)
                 return VoidType;
-            if(exprs.Length == 2)
+			if(exprs.Count == 2)
             {
                 return GenSubCall(exprs[1], il);
             }
-            for (int i = 1; i < exprs.Length; i++)
+			for (int i = 1; i < exprs.Count; i++)
             {
                 Uid type = GenSubCall(exprs[i], il);
-                if (i == exprs.Length - 1)
+				if (i == exprs.Count - 1)
                 {
                     return type;
                 }
@@ -610,31 +601,31 @@ namespace PhotonIl
 
         public Uid Add
         {
-            get { return genBaseFunctor (OpCodes.Add); }
+			get { return genBaseFunctor (OpCodes.Add, "+"); }
         }
 
 		public Uid Subtract
 		{
-			get { return genBaseFunctor (OpCodes.Sub); }
+			get { return genBaseFunctor (OpCodes.Sub, "-"); }
 		}
 
 		public Uid Multiply
 		{
-			get { return genBaseFunctor (OpCodes.Mul); }
+			get { return genBaseFunctor (OpCodes.Mul, "*"); }
 		}
 
 		public Uid Divide
 		{
-			get { return genBaseFunctor (OpCodes.Div); }
+			get { return genBaseFunctor (OpCodes.Div, "/"); }
 		}
 
 		public Uid genAdd(OpCode opcode, Uid expr, ILGenerator il, IlGen gen )
 		{
 			var subs = gen.SubExpressions.Get(expr);
-			if (subs.Length < 2)
+			if (subs.Count < 2)
 				throw new Exception("Invalid number of arguments for +");
 			Uid type = GenSubCall(subs[1], il);
-			for(int i = 2; i < subs.Length; i++)
+			for(int i = 2; i < subs.Count; i++)
 			{
 				Uid t2 = GenSubCall(subs[i], il);
 				if (type != t2)
@@ -645,13 +636,15 @@ namespace PhotonIl
 		}
 
 		Dict<OpCode, Uid> BaseOpCodes = new Dict<OpCode, Uid>();
-
-		public Uid genBaseFunctor(OpCode c)
+		public readonly Dict<Uid, string> MacroNames = new Dict<Uid, string>();
+		public Uid genBaseFunctor(OpCode c, string name)
 		{
 			if (BaseOpCodes.ContainsKey (c) == false) {
 				Uid id = Uid.CreateNew ();
 				BaseOpCodes.Add (c, id);
 				Macros.Add(id, (x, y, z) => genAdd (c, x, y, z));
+				MacroNames.Add (id, name);
+
 			}
 			return BaseOpCodes.Get (c);
 		}
@@ -748,6 +741,7 @@ namespace PhotonIl
 		public void AddMacro(Uid id, MethodInfo m){
 			Assert.IsTrue (m.IsStatic && m.IsPublic);
 			userMacros.Add (id, expr => (Uid)m.Invoke (null, null));
+			MacroNames.Add (id, m.Name);
 		}
 	}
 

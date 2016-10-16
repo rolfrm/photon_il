@@ -25,10 +25,10 @@ namespace PhotonIl
 				dict[key] = new List<V>{};
 			dict [key].AddRange (value);
 		}
-		V[] empty = new V[0];
-		public V[] Get(K key){
+		List<V> empty = new List<V>();
+		public List<V> Get(K key){
 			if (dict.ContainsKey (key))
-				return dict [key].ToArray();
+				return dict [key];
 			return empty;
 		}
 
