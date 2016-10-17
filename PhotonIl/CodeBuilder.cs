@@ -21,6 +21,7 @@ namespace PhotonIl
 		public Uid Function;
 		public Uid SelectedExpression;
 		public int SelectedIndex;
+		public Uid CurrentExpression{ get { return gen.SubExpressions.Get (SelectedExpression) [SelectedIndex]; } }
 		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Count; } }
 		public string CurrentString{
 			get { 
@@ -71,6 +72,8 @@ namespace PhotonIl
 		}
 
 		IEnumerable<Uid> getOptions(string str){
+			if (string.IsNullOrEmpty (str))
+				yield break;
 			float rf;
 			double rd;
 			uint ru;
@@ -137,6 +140,12 @@ namespace PhotonIl
 			SelectedExpression = parent.Key;
 			SelectedIndex = idx;
 		}
+
+		public void Delete(){
+			var exprs = gen.SubExpressions.Get (SelectedExpression);
+			exprs [SelectedIndex] = Uid.Default;
+		}
+
 
 		public MethodInfo Build(){
 			

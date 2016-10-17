@@ -297,6 +297,7 @@ namespace PhotonIl
 				sub(gen.Subtract, arg, gen.DefineConstant(type, 1)), arg), arg);
 			Assert.AreEqual (rt, type);
 		}
+
 		static public void Test11(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
@@ -304,7 +305,6 @@ namespace PhotonIl
 			gen.DefineFcnBody (fibid, sub (gen.Add, gen.DefineConstant(gen.F64Type, Math.PI)));
 			MethodInfo m = gen.GenerateIL (fibid);
 			m.Invoke (null, null);
-
 		}
 	}
 

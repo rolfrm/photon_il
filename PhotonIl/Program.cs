@@ -14,7 +14,7 @@ namespace PhotonIl
 		static void run_tests(){
 			try
 			{
-				/*IlGenTest.Test0();
+				IlGenTest.Test0();
 				IlGenTest.Test1();
 				IlGenTest.Test2();
 				IlGenTest.Test3();
@@ -24,8 +24,8 @@ namespace PhotonIl
 				IlGenTest.Test6_2();
 				IlGenTest.Test7();
 				IlGenTest.Test8();
-				IlGenTest.Test9();*/
-				//IlGenTest.Test10();
+				IlGenTest.Test9();
+				IlGenTest.Test10();
 				IlGenTest.Test11();
 				Console.WriteLine("Passed");
 			}
