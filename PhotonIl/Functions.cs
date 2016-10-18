@@ -15,6 +15,7 @@ namespace PhotonIl
 			ArrayAccess = gen.Sym ("Array Access");
 			Cast = gen.Sym ("Cast");
 			PrintAny = gen.Sym ("print");
+			If = gen.Sym ("if");
 			gen.AddMacro (CreateArray, createArray);
 			gen.AddMacro (ArrayCount, arrayCount);
 			gen.AddMacro (ArrayAccess, arrayAccess);

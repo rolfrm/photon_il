@@ -20,15 +20,30 @@ namespace PhotonIl
 		IlGen gen;
 		public Uid Function;
 		public Uid SelectedExpression;
-		public int SelectedIndex;
-		public Uid CurrentExpression{ get { return gen.SubExpressions.Get (SelectedExpression) [SelectedIndex]; } }
+		int selectedIndex = -1;
+		public int SelectedIndex{
+			get{ return selectedIndex; }
+			set{
+				if (value < 0)
+					selectedIndex = -1;
+				else if (value >= NArguments)
+					selectedIndex = NArguments - 1;
+				else  
+					selectedIndex = value;
+			}
+		}
+			
+		public Uid CurrentExpression{ get { return SelectedIndex == -1 ? Uid.Default : gen.SubExpressions.Get (SelectedExpression) [SelectedIndex]; } }
 		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Count; } }
 		public string CurrentString{
 			get { 
-				return Replacements.Get (new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex });
+				return Replacements.Get (CurrentItem);
 			}
 		}
+		ASTItem CurrentItem { get { return new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex }; } }
 		Dict<ASTItem,string> Replacements = new Dict<ASTItem, string> ();
+		Dict<ASTItem, int> OptionIndexes = new Dict<ASTItem, int> ();
+
 		public CodeBuilder (IlGen gen, Uid fid = default(Uid))
 		{
 			if (fid == Uid.Default) {
@@ -62,13 +77,11 @@ namespace PhotonIl
 		}
 
 		public void SetString(string str){
-			var item = new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex };
-			Replacements[item] = str;
+			Replacements[CurrentItem] = str;
 		}
 
 		public string GetString(){
-			var item = new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex };
-			return Replacements.Get (item) ?? "";
+			return Replacements.Get (CurrentItem) ?? StringOf(CurrentExpression);
 		}
 
 		IEnumerable<Uid> getOptions(string str){
@@ -119,6 +132,7 @@ namespace PhotonIl
 			}
 
 			sexp [SelectedIndex] = option;	
+			Replacements.Remove (CurrentItem);
 		}
 
 		public Uid CreateSub(){
@@ -136,6 +150,11 @@ namespace PhotonIl
 
 		public void Exit(){
 			var parent = gen.SubExpressions.Entries.FirstOrDefault (x => x.Value.Contains (SelectedExpression));
+			if (parent.Value == null) {
+				SelectedExpression = Uid.Default;
+				SelectedIndex = -1;
+				return;
+			}
 			var idx = parent.Value.IndexOf (SelectedExpression);
 			SelectedExpression = parent.Key;
 			SelectedIndex = idx;
@@ -165,8 +184,51 @@ namespace PhotonIl
 			}
 			var m = gen.GenerateIL (fcn);
 			m.Invoke (null, null);
+		}
+
+		public string StringOf(Uid uid){
+			if (uid == Uid.Default)
+				return "";
+			var sub = gen.SubExpressions.Get(uid);
+			if (sub.Count > 0)
+				return "( " + string.Join ("   ", sub.Select (StringOf)) + " )";
+			if (gen.ConstantValue.ContainsKey(uid))
+				return gen.ConstantValue [uid].ToString ();
+			if (gen.ArgumentName.ContainsKey(uid))
+				return gen.ArgumentName [uid];
+			if (gen.FunctionName.ContainsKey(uid))
+				return gen.FunctionName [uid];
+			if (gen.MacroNames.ContainsKey (uid))
+				return gen.MacroNames [uid];
+			if (gen.type_name.ContainsKey (uid))
+				return gen.type_name.Get (uid);
+			throw new Exception ("Cannot tostring type");
 
 		}
+
+		public void CleanSelectedExpression(){
+			var sub = gen.SubExpressions.Get (SelectedExpression);
+			sub.RemoveAll (x => x == Uid.Default);
+			SelectedIndex = Math.Min (SelectedIndex, sub.Count - 1);
+		}
+
+		public int OptionIndex {
+			get {
+				return OptionIndexes.Get (CurrentItem);
+			}
+			set {
+				OptionIndexes[CurrentItem] = value;
+			}
+		}
+
+		public void SelectCurrentOption(){
+			var options = GetOptions ();
+			var idx = OptionIndex;
+			if (idx < 0 || idx >= options.Length)
+				return;
+			SelectOption (options [idx]);
+		}
+
 	}
 }
 

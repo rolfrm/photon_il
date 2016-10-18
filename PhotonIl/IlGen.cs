@@ -272,8 +272,8 @@ namespace PhotonIl
 				if (gen != null)
 					return gen (expr, this);
 			}
-			{
-				
+
+			{	
 				var gen = this.userMacros.Get (subexprs [0]);
 				if (gen != null) {
 					var ret = gen (expr);
@@ -394,67 +394,70 @@ namespace PhotonIl
 			return rt;
 		}
 
-        public MethodInfo GenerateIL(Uid expr)
-        {
-            AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly(
-                new AssemblyName("DynAsm"),AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory());
-            var module = asmBuild.DefineDynamicModule("DynMod", "DynMod.mod");
-            var tb = module.DefineType("MyType", TypeAttributes.Class | TypeAttributes.Public);
+		public MethodInfo GenerateIL (Uid expr)
+		{
+			AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly (
+				                                    new AssemblyName ("DynAsm"), AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
+			var module = asmBuild.DefineDynamicModule ("DynMod");
+			var tb = module.DefineType ("MyType", TypeAttributes.Class | TypeAttributes.Public);
 
-            var name = FunctionName.Get(expr) ?? "_";
-            var body = functionBody.Get(expr);
-            var ftype = expr;
-            if (body != Uid.Default)
-            {
-				var rtype = FunctionReturnType.Get (ftype);
-                MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
-                    GetCSType(rtype),
-					FunctionArguments.Get(ftype).Select(arg => GetCSType(ArgumentType.Get(arg))).ToArray());
-				FunctionInvocation [expr] = fn;
-                var ilgen = fn.GetILGenerator();
-				Interact.Load (this, ilgen);
-				Uid rt;
-				using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
-					var fargs = FunctionArguments.Get (expr);
-					short paramIndex = 0;
-					foreach (var arg in fargs) {
-						var argname = ArgumentName.Get (arg) ?? ("arg_" + arg);
-						var paramBuilder = fn.DefineParameter (paramIndex + 1, ParameterAttributes.None, argname );
-						localSymbols.Value.Add (arg, new LocalSymData{ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
-						paramIndex += 1;
-					}
-					rt = GenSubCall (body);
+			var name = FunctionName.Get (expr) ?? "_";
+			var body = functionBody.Get (expr);
+			var ftype = expr;
+			var rtype = FunctionReturnType.Get (ftype);
+			MethodBuilder fn = tb.DefineMethod (name, MethodAttributes.Static | MethodAttributes.Public,
+				                                GetCSType (rtype),
+				                                FunctionArguments.Get (ftype).Select (arg => GetCSType (ArgumentType.Get (arg))).ToArray ());
+			FunctionInvocation [expr] = fn;
+			var ilgen = fn.GetILGenerator ();
+			Interact.Load (this, ilgen);
+			Uid rt;
+			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
+				var fargs = FunctionArguments.Get (expr);
+				short paramIndex = 0;
+				foreach (var arg in fargs) {
+					var argname = ArgumentName.Get (arg) ?? ("arg_" + arg);
+					fn.DefineParameter (paramIndex + 1, ParameterAttributes.None, argname);
+					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
+					paramIndex += 1;
 				}
-				var rtt = GetCSType (rt);
-				if ( rtype != VoidType && rt != rtype)
-					throw new Exception ("Return types does not match");
-				if (rtype == VoidType && rt != VoidType) {
-					ilgen.Emit (OpCodes.Pop);
-				} 
-				ilgen.Emit (OpCodes.Ret);
-                Type t = tb.CreateType();
-                fn.InitLocals = true;
-                module.CreateGlobalFunctions();
-                var m = t.GetMethod(fn.Name);
-				FunctionInvocation[expr] = m;
-				asmBuild.Save (string.Format ("F_{0}.dll", expr));
-                return m;
-            }
-            else
-            {
-
-                var fn = tb.DefineMethod("run", MethodAttributes.Static | MethodAttributes.Public);
-
-                var ilgen = fn.GetILGenerator();
-                using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
-                    GenSubCall(expr);
-                ilgen.Emit(OpCodes.Ret);
-                Type t = tb.CreateType();
-                var runm = t.GetMethod("run");
-                module.CreateGlobalFunctions();
-                return runm;
-            }
+				rt = GenSubCall (body);
+			}
+			if (rtype != VoidType && rt != rtype)
+				throw new Exception ("Return types does not match");
+			if (rtype == VoidType && rt != VoidType) {
+				ilgen.Emit (OpCodes.Pop);
+			} 
+			ilgen.Emit (OpCodes.Ret);
+			Type t = tb.CreateType ();
+			return FunctionInvocation [expr] = t.GetMethod (fn.Name);
+            
         }
+
+		public MethodInfo GenerateILOld (Uid expr)
+		{
+			AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly (
+				                           new AssemblyName ("DynAsm"), AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
+			var module = asmBuild.DefineDynamicModule ("DynMod");
+			var tb = module.DefineType ("MyType", TypeAttributes.Class | TypeAttributes.Public);
+
+			var name = FunctionName.Get (expr) ?? "_";
+			var body = functionBody.Get (expr);
+			var ftype = expr;
+
+			var fn = tb.DefineMethod ("run", MethodAttributes.Static | MethodAttributes.Public);
+
+			var ilgen = fn.GetILGenerator ();
+			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ()))
+				GenSubCall (expr);
+			ilgen.Emit (OpCodes.Ret);
+			Type t = tb.CreateType ();
+			var runm = t.GetMethod ("run");
+			module.CreateGlobalFunctions ();
+			return runm;
+
+		}
+
         public delegate Uid SubExpressionDelegate(params Uid[] uids);
 
         public SubExpressionDelegate Sub { get { return Expression; } }
@@ -757,8 +760,11 @@ namespace PhotonIl
 		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate>();
 		public delegate Uid MacroDelegate(Uid expr);
 
-		public void AddMacro(Uid id, MacroDelegate d){
+		public void AddMacro(Uid id, MacroDelegate d, string macroName = null){
 			userMacros.Add (id, d);
+			macroName = macroName ?? SymbolNames.FirstOrDefault (x => x.Value == id).Key;
+			if (macroName != null)
+				MacroNames.Add (id, macroName);
 		}
 
 		public void AddMacro(Uid id, MethodInfo m){
