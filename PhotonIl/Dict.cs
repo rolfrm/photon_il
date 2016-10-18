@@ -21,6 +21,8 @@ namespace PhotonIl
 			dict [key].Add (value);
 		}
 		public void Add(K key, IEnumerable<V> value){
+			if (key.Equals(default(K)))
+				throw new Exception ("key cannot be the default value");
 			if(dict.ContainsKey(key) == false)
 				dict[key] = new List<V>{};
 			dict [key].AddRange (value);
@@ -29,7 +31,11 @@ namespace PhotonIl
 		public List<V> Get(K key){
 			if (dict.ContainsKey (key))
 				return dict [key];
-			return empty;
+			return empty.ToList();
+		}
+
+		public bool Contains(K key){
+			return dict.ContainsKey (key);
 		}
 
 		public IEnumerable<KeyValuePair<K, List<V>>> Entries{

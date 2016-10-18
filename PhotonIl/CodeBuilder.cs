@@ -142,9 +142,9 @@ namespace PhotonIl
 		}
 
 		public void Enter(){
-			var exprs = gen.SubExpressions.Get (SelectedExpression);
-			SelectedExpression = exprs [SelectedIndex];
-
+			if (gen.SubExpressions.Contains (CurrentExpression) == false )
+				return;
+			SelectedExpression = CurrentExpression;
 			SelectedIndex = -1;
 		}
 
