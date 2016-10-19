@@ -74,8 +74,6 @@ namespace SimpleCli
 						}
 					}
 
-
-
 				} else if (mod == ConsoleModifiers.Alt) {
 					if (key == ConsoleKey.K || key == ConsoleKey.I) {
 						cb.OptionIndex += key == ConsoleKey.K ? -1 : 1;

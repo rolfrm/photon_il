@@ -99,7 +99,7 @@ namespace PhotonIl
 			F64Type = AddPrimitive("f64", 8, typeof(double),is_float: true);
 
             VoidType = AddPrimitive("void", 0);
-            StringType = Uid.CreateNew();
+			StringType = AddPrimitive ("string", 0, typeof(string));
 			UidType = addCSharpType (typeof(Uid));
 
             IlGenerators.Add(CallExpression, GenCall);

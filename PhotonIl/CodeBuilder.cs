@@ -115,6 +115,7 @@ namespace PhotonIl
 			foreach (var kv in gen.MacroNames)
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
+			yield return gen.StringType;
 		}
 
 		public Uid[] GetOptions(){
@@ -138,6 +139,7 @@ namespace PhotonIl
 		public Uid CreateSub(){
 			var exprs = gen.SubExpressions.Get (SelectedExpression);
 			exprs [SelectedIndex] = Uid.CreateNew ();
+			gen.SubExpressions.Add (exprs [SelectedIndex], Uid.Default);
 			return exprs [SelectedIndex];
 		}
 
@@ -161,6 +163,8 @@ namespace PhotonIl
 		}
 
 		public void Delete(){
+			if (selectedIndex < 0)
+				return;
 			var exprs = gen.SubExpressions.Get (SelectedExpression);
 			exprs [SelectedIndex] = Uid.Default;
 		}
@@ -202,7 +206,7 @@ namespace PhotonIl
 				return gen.MacroNames [uid];
 			if (gen.type_name.ContainsKey (uid))
 				return gen.type_name.Get (uid);
-			throw new Exception ("Cannot tostring type");
+			return "";//throw new Exception ("Cannot tostring type");
 
 		}
 
