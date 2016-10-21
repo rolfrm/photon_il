@@ -76,6 +76,15 @@ namespace PhotonIl
 			SelectedIndex = NArguments - 1;
 		}
 
+		public void PushArgument(string strcontent, Uid option = default(Uid)){
+			PushArgument ();
+			SetString ("defun");
+			if(option == Uid.Default)
+				option = GetOptions ().First ();
+			SelectOption (option);
+		}
+
+
 		public void SetString(string str){
 			Replacements[CurrentItem] = str;
 		}
@@ -171,8 +180,8 @@ namespace PhotonIl
 
 
 		public MethodInfo Build(){
-			
-			gen.GenExpression (Function);
+			var body = gen.GetFunctionBody (Function);
+			var ret = gen.GenExpression (body);
 			return gen.GenerateIL (Function);
 		}
 

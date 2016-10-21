@@ -23,8 +23,6 @@ namespace SimpleCli
 				var key = keyinfo.Key;
 				var mod = keyinfo.Modifiers;
 
-				//Console.WriteLine ("{0} {1}", key, mod);
-				//continue;
 				if ((key == ConsoleKey.LeftArrow || key == ConsoleKey.RightArrow)
 				    && keyinfo.Modifiers == ConsoleModifiers.Shift) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)

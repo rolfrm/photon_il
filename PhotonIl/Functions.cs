@@ -22,6 +22,7 @@ namespace PhotonIl
 			gen.AddMacro (Cast, cast);
 			gen.AddMacro (If, ifmacro);
 			gen.AddMacro (PrintAny, Printany);
+			gen.AddMacro (gen.Sym ("defun"), defunmacro);
 			gen.TypeGetters.Add (getCSType);
 
 			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
@@ -174,7 +175,12 @@ namespace PhotonIl
 			Interact.Emit (OpCodes.Box, Interact.Current.GetCSType(t));	
 			Interact.Emit (OpCodes.Call, typeof(Functions).GetMethod ("PrintAny2", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static));
 			return t;
-				
+		}
+
+		public static Uid defunmacro(Uid expr){
+			var sub = Interact.Current.SubExpressions.Get (expr);
+
+			return expr;
 		}
 	}
 }

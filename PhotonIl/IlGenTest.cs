@@ -306,6 +306,25 @@ namespace PhotonIl
 			MethodInfo m = gen.GenerateIL (fibid);
 			m.Invoke (null, null);
 		}
+
+		static public void Test12(){
+			var gen = new IlGen();
+			var sub = gen.Sub;
+			var cb = new CodeBuilder (gen);
+			cb.PushArgument ("defun");
+			cb.PushArgument ("testfcn", gen.StringType);
+			cb.PushArgument ();
+			cb.CreateSub ();
+			cb.Enter ();
+			cb.PushArgument ("X");
+			cb.Exit ();
+			cb.PushArgument ("X");
+			cb.BuildAndRun ();
+			var fcn = gen.FunctionName.First (x => x.Value == "testfcn").Key;
+			MethodInfo m = gen.FunctionInvocation.Get (fcn);
+			Assert.IsTrue (m != null);
+			Assert.AreEqual ((int)m.Invoke (null, new Object []{5}), 5);
+		}
 	}
 
     public class Assert
