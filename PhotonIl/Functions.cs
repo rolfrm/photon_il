@@ -25,13 +25,13 @@ namespace PhotonIl
 			gen.AddMacro (PrintAny, Printany);
 			gen.AddMacro (gen.Sym ("defun"), defunmacro);
 			gen.AddMacroSpec (gen.Sym ("defun"), defunMacroCompletions);
-			gen.TypeGetters.Add (getCSType);
+			gen.TypeGetters.Add (getArrayCsType);
 
 			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
 			gen.FunctionInvocation.Add (GetSubExpressions, GetType ().GetMethod ("getSubExpressions", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public));
 		}
 
-		Type getCSType(Uid arraytype){
+		Type getArrayCsType(Uid arraytype){
 			var item = arrayTypes.FirstOrDefault (x => x.Value == arraytype);
 			return item.Key;
 		}
@@ -80,6 +80,8 @@ namespace PhotonIl
 				throw new Exception ();
 			
 			var arrayType = Interact.CallOn (s [1]);
+			if (gen.GetCSType(arrayType).IsArray == false)
+				throw new CompilerError (expr, "Argument is not an array type.");
 			Interact.Emit (OpCodes.Ldlen);	
 			Interact.Emit (OpCodes.Conv_U4);
 			return gen.U32Type;
@@ -90,6 +92,8 @@ namespace PhotonIl
 			var s = gen.SubExpressions.Get (expr);
 			var arrayType = Interact.CallOn (s [1]);
 			var indexType = Interact.CallOn (s [2]);
+			if (gen.types.Get (indexType) != PhotonIl.Types.Primitive)
+				throw new CompilerError (expr, "Array indexer must be a primitive type.");
 			var elemType1 = arrayElemTypes.Get(arrayType);
 
 			if (valueExpr != Uid.Default) {
@@ -213,13 +217,15 @@ namespace PhotonIl
 		public readonly Uid ArgumentList = Uid.CreateNew();
 
 		public static Uid defunMacroCompletions(Uid expr, int index, string suggestion){
+			if (index == 0)
+				return Interact.Current.SubExpressions.Get(expr).FirstOrDefault();
 			if (index == 1)
 				return Interact.Current.StringType;
 			if (index == 2)
 				return Interact.Current.F.ArgumentList;
 			if (index == 3)
 				return Uid.Default;
-			throw new CompilerError (expr, "Argument index={index} not supported.");
+			throw new CompilerError (expr, $"Argument index={index} not supported.");
 		}
 
 	}

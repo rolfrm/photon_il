@@ -26,7 +26,7 @@ namespace SimpleCli
 				if ((key == ConsoleKey.LeftArrow || key == ConsoleKey.RightArrow)
 				    && keyinfo.Modifiers == ConsoleModifiers.Shift) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
-						cb.SelectOption (cb.GetOptions ().FirstOrDefault ());
+						cb.SelectCurrentOption ();
 					int direction = key == ConsoleKey.LeftArrow ? -1 : 1;
 					if (cb.SelectedIndex + direction == cb.NArguments)
 						cb.PushArgument ();
@@ -78,7 +78,7 @@ namespace SimpleCli
 					}
 
 				}
-				else if (mod == 0 && keyinfo.KeyChar != 0) {
+				else if ((mod == 0 || mod == ConsoleModifiers.Shift) && keyinfo.KeyChar != 0) {
 					var str = cb.GetString ();
 					str += keyinfo.KeyChar;
 					cb.SetString (str);

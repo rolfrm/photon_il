@@ -160,14 +160,18 @@ namespace PhotonIl
 
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
-			foreach (var kv in gen.variableName)
+			foreach (var kv in gen.VariableName)
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
 			foreach (var kv in gen.MacroNames)
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
-			foreach (var item in GetParentExpressions(SelectedExpression).SelectMany(x => Locals.Get(x)))
-				yield return item;
+			foreach (var item in GetParentExpressions(SelectedExpression).SelectMany(x => Locals.Get(x))) {
+				var argname = gen.ArgumentName.Get (item);
+				if (argname != null && argname.StartsWith(str))
+					yield return item;
+				
+			}
 			yield return gen.StringType;
 		}
 
@@ -268,7 +272,7 @@ namespace PhotonIl
 			if (sub.Count > 0)
 				return "( " + string.Join ("   ", sub.Select (StringOf)) + " )";
 			if (gen.ConstantValue.ContainsKey(uid))
-				return gen.ConstantValue [uid].ToString ();
+				return gen.ConstantValue [uid]?.ToString () ?? "";
 			if (gen.ArgumentName.ContainsKey(uid))
 				return gen.ArgumentName [uid];
 			if (gen.FunctionName.ContainsKey(uid))

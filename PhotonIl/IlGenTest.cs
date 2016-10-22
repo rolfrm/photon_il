@@ -51,10 +51,9 @@ namespace PhotonIl
         {
             var gen = new IlGen();
             var sub = gen.Sub;
-			Uid sarg1, sarg2;
+			Uid sarg1;
             var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),
-                sarg1 = gen.Arg("x", gen.I32Type),
-                sarg2 = gen.Arg("y", gen.I32Type));
+                sarg1 = gen.Arg("x", gen.I32Type), gen.Arg("y", gen.I32Type));
             
 			var addvec2 = gen.DefineFunction("plus", gen.I32Type);
 			Uid sym = gen.Sym("x");
@@ -317,6 +316,8 @@ namespace PhotonIl
 			cb.CreateSub ();
 			cb.Enter ();
 			cb.PushArgument ("X");
+			var currentName = cb.StringOf (cb.CurrentExpression);
+			Assert.IsTrue (string.IsNullOrWhiteSpace (currentName) == false);
 			cb.PushArgument ("Y");
 			cb.Exit ();
 			Assert.AreEqual (gen.SubExpressions.Get (cb.CurrentExpression).Count, 2);
