@@ -11,30 +11,6 @@ namespace PhotonIl
 {
 	public class IlGenTest
 	{
-		public static void printValue (byte value)
-		{
-			System.Console.WriteLine ("Value: {0}", value);
-		}
-
-		public static byte add(byte x, byte y){
-			return (byte)(x + y);
-		}
-
-		public static Uid MacroExample(IlGen gen, Uid expr)
-		{ // swaps the last two args.
-			var subex = gen.SubExpressions.Get (expr).ToArray();
-			if (subex.Length < 3)
-				return expr;
-
-			var last = subex [subex.Length - 1];
-			subex [subex.Length - 1] = subex [subex.Length - 2];
-			subex [subex.Length - 2] = last;
-
-			Uid expr2 = gen.CreateExpression (subex [0]);
-
-			return expr2;
-		}
-
 		static public void Test0(){
 			var gen = new IlGen();
 			var sub = gen.Sub;

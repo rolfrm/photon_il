@@ -15,7 +15,7 @@ namespace PhotonIl
 
 		public static Uid CallOn(Uid expr)
 		{
-			return Current.GenSubCall (expr);
+			return Current.CompileSubExpression (expr);
 		}
 
 		public static void Emit(OpCode code){

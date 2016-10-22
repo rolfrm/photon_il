@@ -58,24 +58,6 @@ namespace PhotonIl
 			return prim;
 		}
 
-		public Uid DefineFunctionType (string name = null)
-		{
-			var ftype = Uid.CreateNew ();
-			types.Add (ftype, Types.Function);
-
-			return ftype;
-		}
-
-		public void AddFunctionArg (Uid fcn, Uid arg)
-		{
-			FunctionArguments.Add (fcn, arg);
-		}
-
-		public void SetFunctionReturnType (Uid fcn, Uid returnType)
-		{
-			FunctionReturnType [fcn] = returnType;
-		}
-
 		Uid addCSharpType (Type type)
 		{
 			if (type.IsValueType == false)
@@ -138,33 +120,10 @@ namespace PhotonIl
 		public readonly Uid F64Type;
 		public readonly Uid VoidType;
 		public readonly Uid StringType;
-
 		public readonly Uid UidType;
 
 		public HashSet<Uid> Expressions = new HashSet<Uid> ();
 		public MultiDict<Uid, Uid> SubExpressions = new MultiDict<Uid, Uid> ();
-
-		public Uid CreateExpression (Uid baseexpr)
-		{
-			var uid = Uid.CreateNew ();
-			Expressions.Add (uid);
-			AddSubExpression (uid, baseexpr);
-			return uid;
-		}
-
-		public Uid CreateExpression (Uid[] items)
-		{
-			var uid = Uid.CreateNew ();
-			Expressions.Add (uid);
-			AddSubExpression (uid, items);
-			return uid;
-		}
-
-		public void AddSubExpression (Uid expression, params Uid[] subexpression)
-		{
-			foreach (var s in subexpression)
-				SubExpressions.Add (expression, s);
-		}
 
 		public Dict<Uid, string> VariableName = new Dict<Uid, string> ();
 		public Dict<Uid, object> VariableValue = new Dict<Uid, object> ();
@@ -220,7 +179,7 @@ namespace PhotonIl
 			return v;
 		}
 
-		public Uid GenSubCall (Uid expr)
+		public Uid CompileSubExpression (Uid expr)
 		{
 			{
 				var constantType = ConstantType.Get (expr);
@@ -284,12 +243,12 @@ namespace PhotonIl
 					if (SubExpressions.Get (ret).Count == 0)
 						return ret;
 					else
-						return GenSubCall (ret);
+						return CompileSubExpression (ret);
 				}
 			}
 
 
-			return GenCall (expr);
+			return CompileFunctionCall (expr);
 
 		}
 
@@ -307,7 +266,6 @@ namespace PhotonIl
 				if (t != null)
 					return t;
 			}
-
 
 			throw new Exception ("Unsupported type");
 		}
@@ -335,9 +293,8 @@ namespace PhotonIl
 
 		public Dict<Uid, Type> generatedStructs = new Dict<Uid, Type> ();
 
-		public Uid GenCall (Uid expr)
+		public Uid CompileFunctionCall (Uid expr)
 		{
-            
 			var subexprs = SubExpressions.Get (expr);
 			var function = subexprs [0];
 			if (FunctionInvocation.Get (function) == null) {
@@ -353,7 +310,7 @@ namespace PhotonIl
 			LocalBuilder[] stlocs = new LocalBuilder[subexprs.Count - 1];
 			for (int i = 1; i < subexprs.Count; i++) {
 
-				Uid type = GenSubCall (subexprs [i]);
+				Uid type = CompileSubExpression (subexprs [i]);
 				if (type != ArgumentType.Get (args [i - 1]))
 					throw new CompilerError (subexprs [i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, args [i - 1], type);
 				stlocs [i - 1] = Interact.DeclareLocal (GetCSType (type));
@@ -388,7 +345,7 @@ namespace PhotonIl
 					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
 					paramIndex += 1;
 				}
-				rt = GenSubCall (expr);
+				rt = CompileSubExpression (expr);
 			}
 			return rt;
 		}
@@ -420,7 +377,7 @@ namespace PhotonIl
 					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
 					paramIndex += 1;
 				}
-				rt = GenSubCall (body);
+				rt = CompileSubExpression (body);
 			}
 			if (rtype != VoidType && rt != rtype)
 				throw new Exception ("Return types does not match");
@@ -438,19 +395,21 @@ namespace PhotonIl
 
 		public Uid Expression (params Uid[] uids)
 		{
-			return CreateExpression (uids);
+			var uid = Uid.CreateNew ();
+			Expressions.Add (uid);
+			SubExpressions.Add (uid, uids);
+			return uid;
 		}
 
 		public Dict<Uid, string> ArgumentName = new Dict<Uid, string> ();
 		public Dict<Uid, Uid> ArgumentType = new Dict<Uid, Uid> ();
 
-		public Uid DefineArgument (string name = null, Uid type = default(Uid))
+		public Uid DefineArgument (string name, Uid type)
 		{
 			var id = Uid.CreateNew ();
 			if (name != null)
 				ArgumentName.Add (id, name);
-			if (type != default(Uid))
-				ArgumentType.Add (id, type);
+			ArgumentType.Add (id, type);
 			return id;
 		}
 
@@ -495,16 +454,16 @@ namespace PhotonIl
 			if (valueExpr != Uid.Default) {
 				gen.SetExprs.Remove (expr);
 				gen.ReferenceReq.Add (sexprs [3]);
-				gen.GenSubCall (sexprs [3]);
+				gen.CompileSubExpression (sexprs [3]);
 				if (gen.ReferenceReq.Contains (sexprs [3]))
 					throw new CompilerError (expr, "Unable to access right valaue");
 				Interact.Emit (OpCodes.Dup);
-				gen.GenSubCall (valueExpr);
+				gen.CompileSubExpression (valueExpr);
 				Interact.Emit (OpCodes.Stfld, field);
 				Interact.Emit (OpCodes.Ldfld, field);
                 
 			} else {
-				gen.GenSubCall (sexprs [3]);
+				gen.CompileSubExpression (sexprs [3]);
 				Interact.Emit (OpCodes.Ldfld, field);
 			}
 
@@ -570,10 +529,10 @@ namespace PhotonIl
 			if (exprs.Count == 1)
 				return VoidType;
 			if (exprs.Count == 2) {
-				return GenSubCall (exprs [1]);
+				return CompileSubExpression (exprs [1]);
 			}
 			for (int i = 1; i < exprs.Count; i++) {
-				Uid type = GenSubCall (exprs [i]);
+				Uid type = CompileSubExpression (exprs [i]);
 				if (i == exprs.Count - 1) {
 					return type;
 				} else if (type != VoidType) {
@@ -599,9 +558,9 @@ namespace PhotonIl
 			var subs = gen.SubExpressions.Get (expr);
 			if (subs.Count < 2)
 				throw new CompilerError (expr, "Invalid number of arguments for +");
-			Uid type = GenSubCall (subs [1]);
+			Uid type = CompileSubExpression (subs [1]);
 			for (int i = 2; i < subs.Count; i++) {
-				Uid t2 = GenSubCall (subs [i]);
+				Uid t2 = CompileSubExpression (subs [i]);
 				if (type != t2)
 					throw new CompilerError (subs [i], "Invalid type for +");
 				Interact.Emit (opcode);
@@ -640,7 +599,7 @@ namespace PhotonIl
 			var exprs = SubExpressions.Get (expr);
 			// set, accessor, value
 			SetExprs.Add (exprs [1], exprs [2]);
-			Uid typeid2 = GenSubCall (exprs [1]);
+			Uid typeid2 = CompileSubExpression (exprs [1]);
 			if (SetExprs.ContainsKey (exprs [1]))
 				throw new CompilerError (expr, "Sub expression does not support set");
 			return typeid2;
@@ -658,8 +617,7 @@ namespace PhotonIl
 		public Uid genLet (Uid expr, IlGen gen)
 		{
 			var exprs = gen.SubExpressions.Get (expr);
-			Debug.Assert (Symbols.Contains (exprs [1]));
-			Uid type = GenSubCall (exprs [2]);
+			Uid type = CompileSubExpression (exprs [2]);
 			var local = Interact.DeclareLocal (GetCSType (type));
 			Interact.Emit (OpCodes.Dup);
 			Interact.Emit (OpCodes.Stloc, local);
