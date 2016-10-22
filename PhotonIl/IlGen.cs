@@ -348,7 +348,7 @@ namespace PhotonIl
 			var returnType = FunctionReturnType.Get (mt);
 
 			if (args.Count != subexprs.Count - 1)
-				throw new CompilerError (expr, "Unsupported number of arguments");
+				throw new CompilerError (expr, $"Unsupported number of arguments. Supported: {args.Count}, got: {subexprs.Count -1}");
 
 			LocalBuilder[] stlocs = new LocalBuilder[subexprs.Count - 1];
 			for (int i = 1; i < subexprs.Count; i++) {

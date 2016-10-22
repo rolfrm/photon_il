@@ -9,15 +9,15 @@ namespace SimpleCli
 	{
 		public static void Main (string[] args)
 		{
-			
-			Console.Clear ();
+			Console.CursorVisible = true;
+			Console.TreatControlCAsInput = true;
+
 			Console.WriteLine ("Welcome to Photon for .NET.");
-			Console.Write (">");
+
 			var gen = new IlGen ();
 			var cb = new CodeBuilder (gen);
 			cb.PushArgument ();
-			Console.CursorVisible = true;
-			Console.TreatControlCAsInput = true;
+
 			while (true) {
 				var keyinfo = Console.ReadKey ();
 				var key = keyinfo.Key;
@@ -39,12 +39,10 @@ namespace SimpleCli
 					cb.Enter ();
 				} else if (key == ConsoleKey.Escape) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
-						cb.SelectOption (cb.GetOptions ().FirstOrDefault ());
+						cb.SelectCurrentOption ();
 					cb.Exit ();
 					if (cb.SelectedExpression == Uid.Default) {
-						Console.CursorLeft = 0;
-						Console.WriteLine ("Byte!");
-						return;
+						cb = new CodeBuilder (gen);
 					}
 				} else if (key == ConsoleKey.Delete) {
 					cb.Delete ();
@@ -61,7 +59,6 @@ namespace SimpleCli
 					}
 					if (key == ConsoleKey.N) {
 						Console.WriteLine ("");
-						Console.Write (">>");
 						try {
 							cb.SelectCurrentOption ();
 							cb.BuildAndRun ();

@@ -54,10 +54,6 @@ namespace PhotonIl
 			}
 		}
 
-
-
-
-
 		public CodeBuilder (IlGen gen, Uid fid = default(Uid))
 		{
 			if (fid == Uid.Default) {
@@ -180,6 +176,13 @@ namespace PhotonIl
 		}
 
 		public void SelectOption(Uid option){
+
+			if (option == gen.F.ArgumentList) {
+				CreateSub ();
+				Replacements.Remove (CurrentItem);
+				return;
+			}
+
 			var sexp = gen.SubExpressions.Get (SelectedExpression);
 
 			{
@@ -254,23 +257,26 @@ namespace PhotonIl
 			var body = gen.GetFunctionBody (Function);
 			Uid ret = gen.GenExpression (body);
 			gen.FunctionReturnType [Function] = ret;
-			Uid fcn = Function;
-
 			if (ret != gen.VoidType) {
-				fcn = gen.DefineFunction ("run", gen.VoidType);
+				var fcn = gen.DefineFunction ("run", gen.VoidType);
 				var body2 = gen.Sub (gen.F.PrintAny, body);
 				gen.DefineFcnBody (fcn, body2);
+				var m = gen.GenerateIL (fcn);
+				m.Invoke (null, null);
+				gen.SubExpressions.Remove (body2);
+			} else {
+				var m = gen.GenerateIL (Function);
+				m.Invoke (null, null);
 			}
-			var m = gen.GenerateIL (fcn);
-			m.Invoke (null, null);
 		}
 
 		public string StringOf(Uid uid){
 			if (uid == Uid.Default)
 				return "";
-			var sub = gen.SubExpressions.Get(uid);
-			if (sub.Count > 0)
-				return "( " + string.Join ("   ", sub.Select (StringOf)) + " )";
+			if (uid == gen.F.ArgumentList)
+				return "argument list";
+			if (gen.SubExpressions.Contains(uid))
+				return "( " + string.Join ("   ", gen.SubExpressions.Get(uid).Select (StringOf)) + " )";
 			if (gen.ConstantValue.ContainsKey(uid))
 				return gen.ConstantValue [uid]?.ToString () ?? "";
 			if (gen.ArgumentName.ContainsKey(uid))
@@ -306,6 +312,10 @@ namespace PhotonIl
 			if (idx < 0 || idx >= options.Length)
 				return;
 			SelectOption (options [idx]);
+		}
+
+		public void Restart(){
+
 		}
 
 	}

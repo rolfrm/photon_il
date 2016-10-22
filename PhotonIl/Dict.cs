@@ -38,6 +38,10 @@ namespace PhotonIl
 			return dict.ContainsKey (key);
 		}
 
+		public void Remove(K key){
+			dict.Remove (key);
+		}
+
 		public IEnumerable<KeyValuePair<K, List<V>>> Entries{
 			get{ return dict; }
 		}
