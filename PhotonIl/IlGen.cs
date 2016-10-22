@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.IO;
 
 namespace PhotonIl
 {
@@ -165,7 +166,7 @@ namespace PhotonIl
 				
 				var name = VariableName.Get (variableId) ?? "AnonVariable";
 				var val = VariableValue.Get (variableId);
-				var mod = newModule ();
+				var mod = getDynamicModule ();
 				var tp = mod.DefineType ("no-name");
 
 				tp.DefineField (name, GetCSType (typeid), FieldAttributes.Public | FieldAttributes.Static); 
@@ -279,7 +280,7 @@ namespace PhotonIl
 			if (generatedStructs.ContainsKey (typeid) == false) {
 				var structNameVar = structName.Get (typeid);
 				var name = VariableValue.Get (structNameVar) as string;
-				var typebuilder = newModule ().DefineType (name ?? "uniqueid",
+				var typebuilder = getDynamicModule ().DefineType (name ?? "uniqueid",
 					                              TypeAttributes.Public | TypeAttributes.SequentialLayout | TypeAttributes.Sealed,
 					                              typeof(ValueType));
 				var members = structMembers.Get (typeid);
@@ -326,12 +327,20 @@ namespace PhotonIl
 			return returnType;
 		}
 
-		ModuleBuilder newModule ()
+		AssemblyBuilder builder;
+		ModuleBuilder modBuilder;
+		Guid asmId = Guid.NewGuid();
+		string AssemblyName () => $"{asmId}.dll";
+		ModuleBuilder getDynamicModule ()
 		{
-			AssemblyBuilder a = AppDomain.CurrentDomain.DefineDynamicAssembly (
-				                             new AssemblyName ("myasm"),
-				                             AssemblyBuilderAccess.RunAndSave);
-			return a.DefineDynamicModule ("myasm.dll");
+			if (builder == null) {
+				
+				builder = AppDomain.CurrentDomain.DefineDynamicAssembly (
+					new AssemblyName (AssemblyName()),
+					AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
+				modBuilder = builder.DefineDynamicModule (AssemblyName(),AssemblyName(),true);
+			}
+			return modBuilder;
 		}
 
 		public Uid GenExpression (Uid expr, params Uid[] arguments)
@@ -349,13 +358,11 @@ namespace PhotonIl
 			}
 			return rt;
 		}
-
+		int typeid = 0;
 		public MethodInfo GenerateIL (Uid expr)
 		{
-			AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly (
-				                           new AssemblyName ("DynAsm"), AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
-			var module = asmBuild.DefineDynamicModule ("DynMod");
-			var tb = module.DefineType ("MyType", TypeAttributes.Class | TypeAttributes.Public);
+			var module = getDynamicModule ();
+			var tb = module.DefineType ($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
 
 			var name = FunctionName.Get (expr) ?? "_";
 			var body = functionBody.Get (expr);
@@ -682,5 +689,31 @@ namespace PhotonIl
 		{
 			return functionBody.Get (fcn);
 		}
+
+		// Pack all the data needed. Most importantly, the types and methods generated. 
+		public void Save(string filepath){
+			builder.Save (AssemblyName());
+			var bytes = File.ReadAllBytes (AssemblyName ());
+			File.WriteAllBytes (filepath, bytes);
+		}
+
+		public void Load(string filepath){
+			var bytedata = File.ReadAllBytes (filepath);
+			var asm = Assembly.Load (bytedata);
+			var exp = asm.GetExportedTypes ();
+			foreach (var tp in exp) {
+				var methods = tp.GetMethods (BindingFlags.Static | BindingFlags.Public);
+				foreach (var method in methods) {
+					Uid id = Uid.CreateNew ();
+					var name = method.Name;
+					FunctionName.Add (id, name);
+					FunctionInvocation.Add (id, method);
+					FunctionReturnType.Add (id, getPhotonType (method.ReturnType));
+					foreach (var arg in method.GetParameters())
+						FunctionArguments.Add(id, Arg (arg.Name, getPhotonType (arg.ParameterType)));
+				}
+			}
+		}
+
 	}
 }
