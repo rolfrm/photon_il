@@ -115,6 +115,11 @@ namespace PhotonIl
 			BitOr = genBaseFunctor (OpCodes.Or, "|");
 			BitAnd = genBaseFunctor (OpCodes.And, "&");
 			Modulus = genBaseFunctor (OpCodes.Rem, "%");
+
+			Macros.Add (Let = Uid.CreateNew (), genLet);
+			Macros.Add (Progn = Uid.CreateNew(), genProgn);
+			Macros.Add (Set = Uid.CreateNew (), genSet);
+			Macros.Add (getStructAccess =  Uid.CreateNew (), genStructAccess);
 		}
 
 		public Uid getPhotonType (Type t)
@@ -188,11 +193,6 @@ namespace PhotonIl
 			return s;
 		}
 
-
-		bool IsExpression (Uid id)
-		{
-			return true;
-		}
 
 		Dict<Uid,FieldInfo> variableItems = new Dict<Uid, FieldInfo> ();
 
@@ -270,7 +270,7 @@ namespace PhotonIl
 			}
 			var subexprs = SubExpressions.Get (expr);
 			if (subexprs.Count == 0)
-				throw new Exception ("Invalid expression");
+				throw new CompilerError (expr, "Invalid expression");
 			{
 				var gen = Macros.Get (subexprs [0]);
 				if (gen != null)
@@ -429,28 +429,7 @@ namespace PhotonIl
 			} 
 			ilgen.Emit (OpCodes.Ret);
 			Type t = tb.CreateType ();
-			return FunctionInvocation [expr] = t.GetMethod (fn.Name);
-            
-		}
-
-		public MethodInfo GenerateILOld (Uid expr)
-		{
-			AssemblyBuilder asmBuild = AppDomain.CurrentDomain.DefineDynamicAssembly (
-				                           new AssemblyName ("DynAsm"), AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
-			var module = asmBuild.DefineDynamicModule ("DynMod");
-			var tb = module.DefineType ("MyType", TypeAttributes.Class | TypeAttributes.Public);
-
-			var fn = tb.DefineMethod ("run", MethodAttributes.Static | MethodAttributes.Public);
-
-			var ilgen = fn.GetILGenerator ();
-			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ()))
-				GenSubCall (expr);
-			ilgen.Emit (OpCodes.Ret);
-			Type t = tb.CreateType ();
-			var runm = t.GetMethod ("run");
-			module.CreateGlobalFunctions ();
-			return runm;
-
+			return FunctionInvocation [expr] = t.GetMethod (fn.Name);   
 		}
 
 		public delegate Uid SubExpressionDelegate (params Uid[] uids);
@@ -499,10 +478,6 @@ namespace PhotonIl
 
 		public Uid GetStructAccessor (Uid member, Uid structexpr)
 		{
-			if (getStructAccess == Uid.Default) {
-				getStructAccess = Uid.CreateNew ();
-				Macros.Add (getStructAccess, genStructAccess);
-			}
 			var structid = structMembers.Entries.FirstOrDefault (e => e.Value.Contains (member)).Key;
 			return Sub (getStructAccess, structid, member, structexpr);
 		}
@@ -587,17 +562,7 @@ namespace PhotonIl
 			functionBody.Add (fcn, body);
 		}
 
-		Uid _progn;
-
-		public Uid Progn {
-			get {
-				if (_progn == Uid.Default) {
-					_progn = Uid.CreateNew ();
-					Macros.Add (_progn, genProgn);
-				}
-				return _progn;
-			}
-		}
+		public readonly Uid Progn;
 
 		public Uid genProgn (Uid expr, IlGen gen)
 		{
@@ -659,30 +624,9 @@ namespace PhotonIl
 			return BaseOpCodes.Get (c);
 		}
 
+		public readonly Uid Let;
 
-		Uid _let;
-
-		public Uid Let {
-			get {
-				if (_let == Uid.Default) {
-					_let = Uid.CreateNew ();
-					Macros.Add (_let, genLet);
-				}
-				return _let;
-			}
-		}
-
-		Uid _set;
-
-		public Uid Set {
-			get {
-				if (_set == Uid.Default) {
-					_set = Uid.CreateNew ();
-					Macros.Add (_set, genSet);
-				}
-				return _set;
-			}
-		}
+		public readonly Uid Set;
 
 		//(setf (member-x sym) 5)
 		// vs
@@ -781,5 +725,4 @@ namespace PhotonIl
 			return functionBody.Get (fcn);
 		}
 	}
-
 }

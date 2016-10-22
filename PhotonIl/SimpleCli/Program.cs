@@ -36,7 +36,12 @@ namespace SimpleCli
 				} else if (keyinfo.Key == ConsoleKey.Enter) {
 					if (mod == ConsoleModifiers.Alt)
 						cb.CreateSub ();
-					cb.Enter ();
+					if(!gen.SubExpressions.Contains(cb.CurrentExpression)){
+						cb.SelectCurrentOption ();
+					}
+					else{
+						cb.Enter ();
+					}
 				} else if (key == ConsoleKey.Escape) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
 						cb.SelectCurrentOption ();
