@@ -318,12 +318,14 @@ namespace PhotonIl
 			cb.Enter ();
 			cb.PushArgument ("X");
 			cb.Exit ();
+			Assert.AreEqual (gen.SubExpressions.Get (cb.CurrentExpression).Count, 1);
 			cb.PushArgument ("X");
 			cb.BuildAndRun ();
 			var fcn = gen.FunctionName.First (x => x.Value == "testfcn").Key;
 			MethodInfo m = gen.FunctionInvocation.Get (fcn);
 			Assert.IsTrue (m != null);
-			Assert.AreEqual ((int)m.Invoke (null, new Object []{5}), 5);
+			object result = m.Invoke (null, new Object[]{ (byte)5 });
+			Assert.AreEqual ((byte)result, (byte)5);
 		}
 	}
 

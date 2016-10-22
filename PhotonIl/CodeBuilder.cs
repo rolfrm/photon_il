@@ -34,6 +34,7 @@ namespace PhotonIl
 		}
 			
 		public Uid CurrentExpression{ get { return SelectedIndex == -1 ? Uid.Default : gen.SubExpressions.Get (SelectedExpression) [SelectedIndex]; } }
+		public Uid FirstExpression { get { return gen.SubExpressions.Get (SelectedExpression).FirstOrDefault (); } }
 		public int NArguments{ get { return gen.SubExpressions.Get (SelectedExpression).Count; } }
 		public string CurrentString{
 			get { 
@@ -43,6 +44,19 @@ namespace PhotonIl
 		ASTItem CurrentItem { get { return new ASTItem{ Expr = SelectedExpression, Index = SelectedIndex }; } }
 		Dict<ASTItem,string> Replacements = new Dict<ASTItem, string> ();
 		Dict<ASTItem, int> OptionIndexes = new Dict<ASTItem, int> ();
+		MultiDict<Uid, Uid> Locals = new MultiDict<Uid, Uid> ();
+
+		public IEnumerable<Uid> GetParentExpressions(Uid start){
+			
+			while (start != Uid.Default) {
+				yield return start;
+				start = gen.SubExpressions.Entries.FirstOrDefault (x => x.Value.Contains (start)).Key;
+			}
+		}
+
+
+
+
 
 		public CodeBuilder (IlGen gen, Uid fid = default(Uid))
 		{
@@ -78,9 +92,18 @@ namespace PhotonIl
 
 		public void PushArgument(string strcontent, Uid option = default(Uid)){
 			PushArgument ();
-			SetString ("defun");
-			if(option == Uid.Default)
-				option = GetOptions ().First ();
+			SetString (strcontent);
+			if (option == Uid.Default) {
+				foreach (var opt in GetOptions ()) {
+					if (option == Uid.Default)
+						option = opt;
+					var strrep = StringOf (opt);
+					if (string.IsNullOrWhiteSpace(strrep) == false && strcontent.StartsWith (StringOf (opt))) {
+						option = opt;
+						break;
+					}
+				}
+			}
 			SelectOption (option);
 		}
 
@@ -94,8 +117,27 @@ namespace PhotonIl
 		}
 
 		IEnumerable<Uid> getOptions(string str){
+			if (ArgumentLists.Contains (SelectedExpression)) {
+				foreach (var tp in gen.generatedStructs.Keys)
+					yield return tp;
+				yield break;
+			}
+
+			var spec = gen.GetMacroSpec (FirstExpression);
+			if (spec != null) {
+				Interact.Load (gen, null);
+				var result = spec (SelectedExpression, SelectedIndex, str);
+				if (result != Uid.Default) {
+					yield return result;
+					yield break;
+				}
+			}
+
 			if (string.IsNullOrEmpty (str))
 				yield break;
+
+
+
 			float rf;
 			double rd;
 			uint ru;
@@ -124,6 +166,8 @@ namespace PhotonIl
 			foreach (var kv in gen.MacroNames)
 				if (kv.Value.StartsWith (str))
 					yield return kv.Key;
+			foreach (var item in GetParentExpressions(SelectedExpression).SelectMany(x => Locals.Get(x)))
+				yield return item;
 			yield return gen.StringType;
 		}
 
@@ -133,22 +177,32 @@ namespace PhotonIl
 
 		public void SelectOption(Uid option){
 			var sexp = gen.SubExpressions.Get (SelectedExpression);
+
+			{
+				if (ArgumentLists.Contains (SelectedExpression)) {
+					Assert.IsTrue (gen.generatedStructs.ContainsKey (option));
+					option = gen.Arg (CurrentString, option);
+				}
+			}
+
 			{
 				Type t = gen.generatedStructs.Get (option);
-				if (t != default(Type)) {
-					object obj = Convert.ChangeType (CurrentString, t);
-					option = gen.DefineConstant (option, obj);
-				}
+				if (t != default(Type)) 
+					option = gen.DefineConstant (option, Convert.ChangeType (CurrentString, t));
+				
 			}
 
 			sexp [SelectedIndex] = option;	
 			Replacements.Remove (CurrentItem);
 		}
-
+		HashSet<Uid> ArgumentLists = new HashSet<Uid>();
 		public Uid CreateSub(){
 			var exprs = gen.SubExpressions.Get (SelectedExpression);
 			exprs [SelectedIndex] = Uid.CreateNew ();
-			gen.SubExpressions.Add (exprs [SelectedIndex], Uid.Default);
+			gen.SubExpressions.Add (exprs [SelectedIndex], new Uid[0]);
+			if (GetOptions ().FirstOrDefault () == gen.F.ArgumentList)
+				ArgumentLists.Add (exprs [SelectedIndex]);
+			
 			return exprs [SelectedIndex];
 		}
 
@@ -166,6 +220,12 @@ namespace PhotonIl
 				SelectedIndex = -1;
 				return;
 			}
+			bool wasArgList = ArgumentLists.Contains(SelectedExpression);
+			if (wasArgList) {
+				var args = gen.SubExpressions.Get (SelectedExpression);
+				Locals.Get (parent.Key).Clear ();
+				Locals.Add (parent.Key, args);
+			}
 			var idx = parent.Value.IndexOf (SelectedExpression);
 			SelectedExpression = parent.Key;
 			SelectedIndex = idx;
@@ -181,7 +241,7 @@ namespace PhotonIl
 
 		public MethodInfo Build(){
 			var body = gen.GetFunctionBody (Function);
-			var ret = gen.GenExpression (body);
+			gen.GenExpression (body);
 			return gen.GenerateIL (Function);
 		}
 
@@ -189,9 +249,11 @@ namespace PhotonIl
 			
 			var body = gen.GetFunctionBody (Function);
 			Uid ret = gen.GenExpression (body);
+			gen.FunctionReturnType [Function] = ret;
+			Uid fcn = Function;
 
-			Uid fcn = gen.DefineFunction ("run", gen.VoidType);
 			if (ret != gen.VoidType) {
+				fcn = gen.DefineFunction ("run", gen.VoidType);
 				var body2 = gen.Sub (gen.F.PrintAny, body);
 				gen.DefineFcnBody (fcn, body2);
 			}

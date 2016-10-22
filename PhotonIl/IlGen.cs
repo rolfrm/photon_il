@@ -374,7 +374,7 @@ namespace PhotonIl
             AssemblyBuilder a = AppDomain.CurrentDomain.DefineDynamicAssembly(
                 new AssemblyName("myasm"),
                 AssemblyBuilderAccess.RunAndSave);
-            return a.DefineDynamicModule("myasm.dll", "DynAsm2.mod");
+            return a.DefineDynamicModule("myasm.dll");
         }
 
 		public Uid GenExpression (Uid expr, params Uid[] arguments)
@@ -405,9 +405,9 @@ namespace PhotonIl
 			var body = functionBody.Get (expr);
 			var ftype = expr;
 			var rtype = FunctionReturnType.Get (ftype);
+			var fargCs = FunctionArguments.Get (ftype).Select (arg => GetCSType (ArgumentType.Get (arg))).ToArray ();
 			MethodBuilder fn = tb.DefineMethod (name, MethodAttributes.Static | MethodAttributes.Public,
-				                                GetCSType (rtype),
-				                                FunctionArguments.Get (ftype).Select (arg => GetCSType (ArgumentType.Get (arg))).ToArray ());
+				                                GetCSType (rtype),fargCs);
 			FunctionInvocation [expr] = fn;
 			var ilgen = fn.GetILGenerator ();
 			Interact.Load (this, ilgen);
@@ -440,10 +440,6 @@ namespace PhotonIl
 				                           new AssemblyName ("DynAsm"), AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
 			var module = asmBuild.DefineDynamicModule ("DynMod");
 			var tb = module.DefineType ("MyType", TypeAttributes.Class | TypeAttributes.Public);
-
-			var name = FunctionName.Get (expr) ?? "_";
-			var body = functionBody.Get (expr);
-			var ftype = expr;
 
 			var fn = tb.DefineMethod ("run", MethodAttributes.Static | MethodAttributes.Public);
 
@@ -524,7 +520,7 @@ namespace PhotonIl
                 gen.ReferenceReq.Add(sexprs[3]);
                 gen.GenSubCall(sexprs[3]);
                 if (gen.ReferenceReq.Contains(sexprs[3]))
-                    throw new Exception("Unable to access right valaue");
+                    throw new CompilerError(expr, "Unable to access right valaue");
 				Interact.Emit(OpCodes.Dup);
                 gen.GenSubCall(valueExpr);
 				Interact.Emit(OpCodes.Stfld, field);
@@ -649,13 +645,13 @@ namespace PhotonIl
 		{
 			var subs = gen.SubExpressions.Get(expr);
 			if (subs.Count < 2)
-				throw new Exception("Invalid number of arguments for +");
+				throw new CompilerError(expr, "Invalid number of arguments for +");
 			Uid type = GenSubCall(subs[1]);
 			for(int i = 2; i < subs.Count; i++)
 			{
 				Uid t2 = GenSubCall(subs[i]);
 				if (type != t2)
-					throw new Exception("Invalid type for +");
+					throw new CompilerError(subs[i], "Invalid type for +");
 				Interact.Emit(opcode);
 			}
 			return type;
@@ -716,7 +712,7 @@ namespace PhotonIl
             SetExprs.Add(exprs[1],exprs[2]);
             Uid typeid2 = GenSubCall(exprs[1]);
             if (SetExprs.ContainsKey(exprs[1]))
-                throw new Exception("Sub expression does not support set");
+				throw new CompilerError(expr, "Sub expression does not support set");
             return typeid2;
         }
 
@@ -757,6 +753,10 @@ namespace PhotonIl
             Symbols.Add(@new);
             return @new;
         }
+
+		public bool IsSym(Uid id) => Symbols.Contains(id);
+		public string SymName(Uid id) => SymbolNames.FirstOrDefault(x => x.Value == id).Key;
+
 		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate>();
 		public delegate Uid MacroDelegate(Uid expr);
 
@@ -771,6 +771,17 @@ namespace PhotonIl
 			Assert.IsTrue (m.IsStatic && m.IsPublic);
 			userMacros.Add (id, expr => (Uid)m.Invoke (null, null));
 			MacroNames.Add (id, m.Name);
+		}
+
+		public delegate Uid MacroSpecDelegate(Uid expr, int index, string suggestion);
+		Dict<Uid,MacroSpecDelegate> macroSpecs = new Dict<Uid, MacroSpecDelegate>();
+
+		public void AddMacroSpec(Uid macro, MacroSpecDelegate func){
+			macroSpecs.Add (macro, func);
+		}
+
+		public MacroSpecDelegate GetMacroSpec(Uid macro){
+			return macroSpecs.Get (macro);
 		}
 
 		public Uid GetFunctionBody(Uid fcn){
