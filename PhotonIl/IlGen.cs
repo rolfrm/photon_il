@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace PhotonIl
 {
@@ -331,6 +332,9 @@ namespace PhotonIl
 		ModuleBuilder modBuilder;
 		Guid asmId = Guid.NewGuid();
 		string AssemblyName () => $"{asmId}.dll";
+
+		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
+
 		ModuleBuilder getDynamicModule ()
 		{
 			if (builder == null) {
@@ -338,7 +342,11 @@ namespace PhotonIl
 				builder = AppDomain.CurrentDomain.DefineDynamicAssembly (
 					new AssemblyName (AssemblyName()),
 					AssemblyBuilderAccess.RunAndSave, System.IO.Directory.GetCurrentDirectory ());
+				loadedAssemblies.Add (asmId);
 				modBuilder = builder.DefineDynamicModule (AssemblyName(),AssemblyName(),true);
+				CustomAttributeBuilder attrBuilder = new CustomAttributeBuilder (typeof(System.Runtime.InteropServices.GuidAttribute).GetConstructors()[0], new object[]{asmId.ToString ()});
+				builder.SetCustomAttribute (attrBuilder);
+				var guid = builder.GetCustomAttribute<System.Runtime.InteropServices.GuidAttribute> ();
 			}
 			return modBuilder;
 		}
@@ -699,8 +707,23 @@ namespace PhotonIl
 
 		public void Load(string filepath){
 			var bytedata = File.ReadAllBytes (filepath);
-			var asm = Assembly.Load (bytedata);
-			var exp = asm.GetExportedTypes ();
+			Assembly asm = null;
+			{
+				var rasm = Assembly.ReflectionOnlyLoad (bytedata);
+				var guid = Guid.Parse (rasm.GetCustomAttribute<GuidAttribute> ().Value);
+				var asms = AppDomain.CurrentDomain.GetAssemblies ();
+				asm = asms.FirstOrDefault (a => a.FullName == rasm.FullName);
+				if (loadedAssemblies.Contains (guid))
+					return;
+			}
+
+			asm = asm ?? Assembly.Load (bytedata);
+			Type[] exp;
+			if (asm is AssemblyBuilder) {
+				exp = (asm as AssemblyBuilder).DefinedTypes.ToArray();
+			}else{
+			 exp = asm.GetExportedTypes ();
+			}
 			foreach (var tp in exp) {
 				var methods = tp.GetMethods (BindingFlags.Static | BindingFlags.Public);
 				foreach (var method in methods) {
