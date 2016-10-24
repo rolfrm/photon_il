@@ -151,8 +151,8 @@ namespace PhotonIl
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn
 					, sub (gen.Let,
-					     arraysym, sub (gen.F.CreateArray, gen.I32Type, gen.F.Const (15)))
-					, sub (gen.F.ArrayCount, arraysym)));
+					     arraysym, sub (gen.A.CreateArray, gen.I32Type, gen.F.Const (15)))
+					, sub (gen.A.ArrayCount, arraysym)));
 					
 
 			var m = gen.GenerateIL(f);
@@ -168,11 +168,11 @@ namespace PhotonIl
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn,
 					sub (gen.Let,
-						arraysym, sub (gen.F.CreateArray, gen.U32Type, gen.F.Const((uint)5))),
-					sub (gen.Let, lensym, sub (gen.F.ArrayCount, arraysym)),
-					sub (gen.Set, sub (gen.F.ArrayAccess, arraysym, gen.F.Const(3)),
-						sub (gen.Add, lensym, sub (gen.F.ArrayAccess, arraysym, gen.F.Const(3)), gen.F.Const ((uint)100)))
-					,sub(gen.F.ArrayAccess, arraysym, gen.F.Const(3))));
+						arraysym, sub (gen.A.CreateArray, gen.U32Type, gen.F.Const((uint)5))),
+					sub (gen.Let, lensym, sub (gen.A.ArrayCount, arraysym)),
+					sub (gen.Set, sub (gen.A.ArrayAccess, arraysym, gen.F.Const(3)),
+						sub (gen.Add, lensym, sub (gen.A.ArrayAccess, arraysym, gen.F.Const(3)), gen.F.Const ((uint)100)))
+					,sub(gen.A.ArrayAccess, arraysym, gen.F.Const(3))));
 			
 			var m = gen.GenerateIL(f);
 			var result = (uint)m.Invoke (null, null);
@@ -184,19 +184,19 @@ namespace PhotonIl
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			Uid arg;
-			var f = gen.DefineFunction ("test7", gen.F.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
+			var f = gen.DefineFunction ("test7", gen.A.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
 
 			Uid arraysym =gen.Sym ("array"), lensym =gen.Sym ("length"), tmpsym =gen.Sym ("tmp");
 			gen.DefineFcnBody (f, 
 				sub (gen.Progn
-					, sub (gen.Let, arraysym, sub (gen.F.GetSubExpressions, arg))
-					, sub (gen.Let, lensym, sub (gen.F.Cast, gen.I32Type, sub (gen.F.ArrayCount, arraysym))) 
-					, sub (gen.Let, tmpsym, sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
+					, sub (gen.Let, arraysym, sub (gen.A.GetSubExpressions, arg))
+					, sub (gen.Let, lensym, sub (gen.F.Cast, gen.I32Type, sub (gen.A.ArrayCount, arraysym))) 
+					, sub (gen.Let, tmpsym, sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
 					, sub (gen.Set
-					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1)))
-					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
+					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1)))
+					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
 					, sub (gen.Set
-					   , sub (gen.F.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2)))
+					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2)))
 						, tmpsym)
 					, arraysym));
 			var m = gen.GenerateIL(f);

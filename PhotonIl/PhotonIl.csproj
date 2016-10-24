@@ -22,6 +22,10 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="Mono.Posix" />
+    <Reference Include="protobuf-net">
+      <HintPath>..\protobuf-net.2.1.0\lib\net451\protobuf-net.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -33,8 +37,9 @@
     <Compile Include="StackLocal.cs" />
     <Compile Include="IlGen.cs" />
     <Compile Include="Interact.cs" />
-    <Compile Include="Functions.cs" />
     <Compile Include="CodeBuilder.cs" />
+    <Compile Include="ArrayModule.cs" />
+    <Compile Include="BaseFunctions.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />S
 </Project>

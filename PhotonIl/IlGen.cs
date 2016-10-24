@@ -7,6 +7,9 @@ using System.Linq;
 using System.Threading;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using ProtoBuf.Meta;
+using ProtoBuf;
 
 namespace PhotonIl
 {
@@ -28,25 +31,110 @@ namespace PhotonIl
 		Struct
 	}
 
-	public class IlGen
+	public class IlGen : IPhotonModule
 	{
-		
-		public Functions F;
+		public BaseFunctions F { get { return GetModule<BaseFunctions> (); } }
+		public ArrayModule A { get { return GetModule<ArrayModule> (); } }
 
-		public static Uid MacroExpression = Uid.CreateNew ();
 		public Dict<Uid, Types> types = new Dict<Uid, Types> ();
 		public Dict<Uid, string> type_name = new Dict<Uid, string> ();
 		public Dict<Uid, int> type_size = new Dict<Uid, int> ();
 		public Dict<Uid, bool> is_floating_point = new Dict<Uid, bool> ();
 
 		public Dict<Uid, Uid> FunctionReturnType = new Dict<Uid, Uid> ();
-        
 		public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo> ();
 		public Dict<Uid, string> FunctionName = new Dict<Uid, string> ();
+		MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid> ();
+		Dict<Uid, Uid> functionBody = new Dict<Uid, Uid> ();
 
 		public Dict<Uid, Func<Uid, IlGen, Uid>> Macros = new Dict<Uid, Func<Uid, IlGen, Uid>> ();
+		public readonly Uid U8Type;
+		public readonly Uid U16Type;
+		public readonly Uid U32Type;
+		public readonly Uid I32Type;
+		public readonly Uid F32Type;
+		public readonly Uid F64Type;
+		public readonly Uid VoidType;
+		public readonly Uid StringType;
+		public readonly Uid UidType;
 
-		public delegate Uid Generator (Uid exprid);
+		public HashSet<Uid> Expressions = new HashSet<Uid> ();
+		public MultiDict<Uid, Uid> SubExpressions = new MultiDict<Uid, Uid> ();
+		public Dict<Uid, string> VariableName = new Dict<Uid, string> ();
+		public Dict<Uid, object> VariableValue = new Dict<Uid, object> ();
+		public Dict<Uid, Uid> VariableType = new Dict<Uid, Uid> ();
+
+		public readonly Dict<Uid, object> ConstantValue = new Dict<Uid, object> ();
+		public readonly Dict<Uid, Uid> ConstantType = new Dict<Uid, Uid> ();
+		Dict<Uid,FieldInfo> variableItems = new Dict<Uid, FieldInfo> ();
+		public delegate Type TypeGetter (Uid expr);
+
+		public readonly List<TypeGetter> TypeGetters = new List<TypeGetter> ();
+
+		AssemblyBuilder builder;
+		ModuleBuilder modBuilder;
+		Guid asmId = Guid.NewGuid();
+		string AssemblyName () => $"{asmId}.dll";
+
+		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
+
+		public readonly Uid Add;
+		public readonly Uid Subtract;
+		public readonly Uid Multiply;
+		public readonly Uid Divide;
+		public readonly Uid RightShift;
+		public readonly Uid LeftShift;
+		public readonly Uid BitOr;
+		public readonly Uid BitAnd;
+		public readonly Uid Modulus;
+
+		Dict<string, Uid> SymbolNames = new Dict<string, Uid> ();
+		HashSet<Uid> Symbols = new HashSet<Uid> ();
+		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate> ();
+
+		public delegate Uid MacroDelegate (Uid expr);
+		public delegate Uid MacroSpecDelegate (Uid expr, int index, string suggestion);
+
+		Dict<Uid,MacroSpecDelegate> macroSpecs = new Dict<Uid, MacroSpecDelegate> ();
+
+		public void Load(IlGen gen){
+
+		}
+
+		public void LoadData(Assembly asm, object serialized){
+			var lut = (Dict<Uid, Tuple<string, string>>)serialized;
+			foreach (var item in lut) {
+				var type = asm.GetType (item.Value.Item1);
+				if (type == null)
+					continue;
+				var method = type.GetMethod (item.Value.Item2);
+				FunctionInvocation [Uid.CreateNew ()] = method;
+			}
+		}
+		public object Save(){
+			var functionTypeNames = new Dict<Uid, Tuple<string, string>>();
+			foreach (var f in FunctionInvocation) {
+				functionTypeNames [f.Key] = Tuple.Create(f.Value.DeclaringType.FullName, f.Value.Name);
+			}
+			return functionTypeNames;
+		}
+		Dict<Type, IPhotonModule> modules = new Dict<Type, IPhotonModule>();
+
+		public IPhotonModule GetModule(Type t){
+			if (false == modules.ContainsKey (t)) 
+			{
+				modules [t] = (IPhotonModule)Activator.CreateInstance (t);
+				modules [t].Load (this);
+			}
+			return modules [t];
+
+		}
+
+		public T GetModule<T>() where T: IPhotonModule
+		{
+			return (T)GetModule (typeof(T));
+		}
+
 
 		public Uid AddPrimitive (string name, int size, Type dotNetType = null, bool is_float = false)
 		{
@@ -73,9 +161,11 @@ namespace PhotonIl
 			return uid;
 		}
 
-		public IlGen ()
+		public IlGen (bool bare = false)
 		{
-			
+			modules [typeof(IlGen)] = this;
+			if (bare)
+				return;
 			U8Type = AddPrimitive ("u8", 1, typeof(byte));
 			U16Type = AddPrimitive ("u16", 2, typeof(short));
 			U32Type = AddPrimitive ("u32", 4, typeof(uint));
@@ -87,7 +177,7 @@ namespace PhotonIl
 			StringType = AddPrimitive ("string", 0, typeof(string));
 			UidType = addCSharpType (typeof(Uid));
 			Assert.IsTrue (this.type_size.Get (U8Type) == 1);
-			F = new Functions (this);
+			F.ToString ();A.ToString ();
 
 
 			Add = genBaseFunctor (OpCodes.Add, "+");
@@ -106,6 +196,14 @@ namespace PhotonIl
 			Macros.Add (getStructAccess =  Uid.CreateNew (), genStructAccess);
 		}
 
+		/*
+		public void AddMacro(Uid symbol, object holder, string methodname){
+			var tp = holder.GetType ();
+			var method = tp.GetMethod (methodname, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+			if (method != null)
+				Macros.Add (symbol, method);
+		}*/
+
 		public Uid getPhotonType (Type t)
 		{
 			var entry = generatedStructs.FirstOrDefault (x => x.Value == t);
@@ -113,23 +211,6 @@ namespace PhotonIl
 				return entry.Key;
 			throw new Exception ("Type not found: " + t.Name);
 		}
-
-		public readonly Uid U8Type;
-		public readonly Uid U16Type;
-		public readonly Uid U32Type;
-		public readonly Uid I32Type;
-		public readonly Uid F32Type;
-		public readonly Uid F64Type;
-		public readonly Uid VoidType;
-		public readonly Uid StringType;
-		public readonly Uid UidType;
-
-		public HashSet<Uid> Expressions = new HashSet<Uid> ();
-		public MultiDict<Uid, Uid> SubExpressions = new MultiDict<Uid, Uid> ();
-
-		public Dict<Uid, string> VariableName = new Dict<Uid, string> ();
-		public Dict<Uid, object> VariableValue = new Dict<Uid, object> ();
-		public Dict<Uid, Uid> VariableType = new Dict<Uid, Uid> ();
 
 		public Uid DefineVariable (Uid type, string name = null, object value = null)
 		{
@@ -143,9 +224,6 @@ namespace PhotonIl
 			return varid;
 		}
 
-		public readonly Dict<Uid, object> ConstantValue = new Dict<Uid, object> ();
-		public readonly Dict<Uid, Uid> ConstantType = new Dict<Uid, Uid> ();
-
 		public Uid DefineConstant (Uid type, object value, string name = null)
 		{
 			var s = Sym (name);
@@ -153,9 +231,6 @@ namespace PhotonIl
 			ConstantValue.Add (s, value);
 			return s;
 		}
-
-
-		Dict<Uid,FieldInfo> variableItems = new Dict<Uid, FieldInfo> ();
 
 		FieldInfo getVariable (Uid variableId)
 		{
@@ -272,9 +347,7 @@ namespace PhotonIl
 			throw new Exception ("Unsupported type");
 		}
 
-		public delegate Type TypeGetter (Uid expr);
 
-		public readonly List<TypeGetter> TypeGetters = new List<TypeGetter> ();
 
 		Type getStructType (Uid typeid)
 		{
@@ -328,13 +401,6 @@ namespace PhotonIl
 			return returnType;
 		}
 
-		AssemblyBuilder builder;
-		ModuleBuilder modBuilder;
-		Guid asmId = Guid.NewGuid();
-		string AssemblyName () => $"{asmId}.dll";
-
-		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
-
 		ModuleBuilder getDynamicModule ()
 		{
 			if (builder == null) {
@@ -346,7 +412,6 @@ namespace PhotonIl
 				modBuilder = builder.DefineDynamicModule (AssemblyName(),AssemblyName(),true);
 				CustomAttributeBuilder attrBuilder = new CustomAttributeBuilder (typeof(System.Runtime.InteropServices.GuidAttribute).GetConstructors()[0], new object[]{asmId.ToString ()});
 				builder.SetCustomAttribute (attrBuilder);
-				var guid = builder.GetCustomAttribute<System.Runtime.InteropServices.GuidAttribute> ();
 			}
 			return modBuilder;
 		}
@@ -516,9 +581,6 @@ namespace PhotonIl
 			return GetCSType (structType).GetFields () [idx];
 		}
 
-
-		MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid> ();
-
 		public Uid DefineFunction (string name, Uid returnType, params Uid[] arguments)
 		{
 
@@ -529,7 +591,7 @@ namespace PhotonIl
 			return id;
 		}
 
-		Dict<Uid, Uid> functionBody = new Dict<Uid, Uid> ();
+
 
 		public void DefineFcnBody (Uid fcn, Uid body)
 		{
@@ -557,16 +619,6 @@ namespace PhotonIl
 			Debug.Fail ("Unreachable");
 			return Uid.Default;
 		}
-
-		public readonly Uid Add;
-		public readonly Uid Subtract;
-		public readonly Uid Multiply;
-		public readonly Uid Divide;
-		public readonly Uid RightShift;
-		public readonly Uid LeftShift;
-		public readonly Uid BitOr;
-		public readonly Uid BitAnd;
-		public readonly Uid Modulus;
 
 		public Uid genAdd (OpCode opcode, Uid expr, IlGen gen)
 		{
@@ -609,6 +661,7 @@ namespace PhotonIl
 		// to work.
 		public Dict<Uid,Uid> SetExprs = new Dict<Uid,Uid> ();
 
+
 		public Uid genSet (Uid expr, IlGen gen)
 		{
 			var exprs = SubExpressions.Get (expr);
@@ -640,9 +693,6 @@ namespace PhotonIl
 			return type;
 		}
 
-		Dict<string, Uid> SymbolNames = new Dict<string, Uid> ();
-		HashSet<Uid> Symbols = new HashSet<Uid> ();
-
 		public Uid Sym (string name = null)
 		{
 			if (name != null && SymbolNames.ContainsKey (name)) {
@@ -660,10 +710,6 @@ namespace PhotonIl
 
 		public string SymName (Uid id) => SymbolNames.FirstOrDefault(x => x.Value == id).Key;
 
-		Dict<Uid,MacroDelegate> userMacros = new Dict<Uid, MacroDelegate> ();
-
-		public delegate Uid MacroDelegate (Uid expr);
-
 		public void AddMacro (Uid id, MacroDelegate d, string macroName = null)
 		{
 			userMacros.Add (id, d);
@@ -679,9 +725,6 @@ namespace PhotonIl
 			MacroNames.Add (id, m.Name);
 		}
 
-		public delegate Uid MacroSpecDelegate (Uid expr, int index, string suggestion);
-
-		Dict<Uid,MacroSpecDelegate> macroSpecs = new Dict<Uid, MacroSpecDelegate> ();
 
 		public void AddMacroSpec (Uid macro, MacroSpecDelegate func)
 		{
@@ -698,45 +741,61 @@ namespace PhotonIl
 			return functionBody.Get (fcn);
 		}
 
-		// Pack all the data needed. Most importantly, the types and methods generated. 
-		public void Save(string filepath){
-			builder.Save (AssemblyName());
-			var bytes = File.ReadAllBytes (AssemblyName ());
-			File.WriteAllBytes (filepath, bytes);
+		[ProtoBuf.ProtoContract]
+		public class Serialized{
+			[ProtoBuf.ProtoMember(1)]
+			public string TypeName;
+			[ProtoBuf.ProtoMember(2)]
+			public object Data;
 		}
 
-		public void Load(string filepath){
-			var bytedata = File.ReadAllBytes (filepath);
-			Assembly asm = null;
-			{
-				var rasm = Assembly.ReflectionOnlyLoad (bytedata);
-				var guid = Guid.Parse (rasm.GetCustomAttribute<GuidAttribute> ().Value);
-				var asms = AppDomain.CurrentDomain.GetAssemblies ();
-				asm = asms.FirstOrDefault (a => a.FullName == rasm.FullName);
-				if (loadedAssemblies.Contains (guid))
-					return;
-			}
-
-			asm = asm ?? Assembly.Load (bytedata);
-			Type[] exp;
-			if (asm is AssemblyBuilder) {
-				exp = (asm as AssemblyBuilder).DefinedTypes.ToArray();
-			}else{
-			 exp = asm.GetExportedTypes ();
-			}
-			foreach (var tp in exp) {
-				var methods = tp.GetMethods (BindingFlags.Static | BindingFlags.Public);
-				foreach (var method in methods) {
-					Uid id = Uid.CreateNew ();
-					var name = method.Name;
-					FunctionName.Add (id, name);
-					FunctionInvocation.Add (id, method);
-					FunctionReturnType.Add (id, getPhotonType (method.ReturnType));
-					foreach (var arg in method.GetParameters())
-						FunctionArguments.Add(id, Arg (arg.Name, getPhotonType (arg.ParameterType)));
+		// Pack all the data needed. Most importantly, the types and methods generated. 
+		public void Save(string filepath){
+			builder.Save (AssemblyName ());
+			File.Delete (filepath);
+			using (var str = File.OpenWrite (filepath)) {
+				var bytes = File.ReadAllBytes (AssemblyName ());
+				Serializer.SerializeWithLengthPrefix (str, bytes, PrefixStyle.Base128,1);
+				foreach (var mod in modules) {
+					var serial = new Serialized{ TypeName = mod.Key.FullName, Data = mod.Value.Save () };
+					if (serial.Data != null) {
+						Serializer.SerializeWithLengthPrefix (str, serial.TypeName, PrefixStyle.Base128,2);
+						Serializer.SerializeWithLengthPrefix (str, serial.Data.GetType().FullName, PrefixStyle.Base128,3);
+						Serializer.NonGeneric.SerializeWithLengthPrefix (str, serial.Data, PrefixStyle.Base128,4);
+					}
 				}
 			}
 		}
 
+		public void Load(string filepath){
+			
+			byte[] bytedata = null;
+			using (var str = File.OpenRead (filepath)) {
+				bytedata = ProtoBuf.Serializer.DeserializeWithLengthPrefix<byte[]> (str, PrefixStyle.Base128,1);
+				Assembly asm = null;
+				{
+					var rasm = Assembly.ReflectionOnlyLoad (bytedata);
+					var guid = Guid.Parse (rasm.GetCustomAttribute<GuidAttribute> ().Value);
+					var asms = AppDomain.CurrentDomain.GetAssemblies ();
+					asm = asms.FirstOrDefault (a => a.FullName == rasm.FullName);
+					if (loadedAssemblies.Contains (guid))
+						return;
+				}
+
+				asm = asm ?? Assembly.Load (bytedata);
+				Uid.AssemblyIdStore.Value = 1;
+				while (str.Position + 1 <= str.Length) {
+					var s = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,2);
+					var s2 = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,3);
+					var tp = System.Type.GetType (s);
+					var tp2 = System.Type.GetType (s2);
+					object obj;
+					bool ok = ProtoBuf.Serializer.NonGeneric.TryDeserializeWithLengthPrefix(str, PrefixStyle.Base128, fld => tp2, out obj);
+					Assert.IsTrue (ok);
+					GetModule (tp).LoadData (asm, obj);
+				}
+				Uid.AssemblyIdStore.Value = 0;
+			}
+		}
 	}
 }

@@ -4,6 +4,7 @@ using System.Linq;
 
 namespace PhotonIl
 {
+	[ProtoBuf.ProtoContract]
 	public class Dict<K, V> : Dictionary<K, V>{
 
 		public V Get(K key){
@@ -11,8 +12,13 @@ namespace PhotonIl
 				return this [key];
 			return default(V);
 		}
-	}
 
+		public Dict() : base(){
+
+		}
+
+	}
+	[Serializable]
 	public class MultiDict<K, V>{
 		Dictionary<K, List<V>> dict = new Dictionary<K, List<V>>();
 		public void Add(K key, V value){

@@ -2,14 +2,17 @@
 
 namespace PhotonIl
 {
+	[ProtoBuf.ProtoContract]
 	public struct Uid : IEquatable<Uid>
 	{
 		static int _id = 1;
+
 
 		public static readonly Uid Default = new Uid(0);
 
 		Uid(int id ){
 			Id = id;
+			AssemblyId = 0;
 		}
 
 		public static Uid CreateNew ()
@@ -17,7 +20,17 @@ namespace PhotonIl
 			return new Uid(_id++);
 		}
 
+		[ProtoBuf.ProtoMember(1)]
 		public readonly int Id;
+
+		public int AssemblyId; 
+
+		public static System.Threading.ThreadLocal<int> AssemblyIdStore = new System.Threading.ThreadLocal<int>();
+
+		[ProtoBuf.ProtoAfterDeserializationAttribute]
+		public void WasDeserialized(){
+			AssemblyId = AssemblyIdStore.Value;
+		}
 
 		public bool Equals (Uid other)
 		{
@@ -34,17 +47,17 @@ namespace PhotonIl
 
 		public static bool operator== (Uid a, Uid b)
 		{
-			return a.Id == b.Id;
+			return a.Id == b.Id && a.AssemblyId == b.AssemblyId;
 		}
 
 		public static bool operator!= (Uid a, Uid b)
 		{
-			return a.Id != b.Id;
+			return a.Id != b.Id || a.AssemblyId != b.AssemblyId;
 		}
 
 		public override int GetHashCode ()
 		{
-			return Id.GetHashCode ();
+			return Id.GetHashCode () ^ AssemblyId.GetHashCode ();
 		}
 
 		public override string ToString ()
