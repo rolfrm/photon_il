@@ -25,11 +25,12 @@ namespace PhotonIl
 
 		public int AssemblyId; 
 
-		public static System.Threading.ThreadLocal<int> AssemblyIdStore = new System.Threading.ThreadLocal<int>();
+		public static Dict<int,int> LoadAssemblyTranslation = new Dict<int, int> ();
 
 		[ProtoBuf.ProtoAfterDeserializationAttribute]
 		public void WasDeserialized(){
-			AssemblyId = AssemblyIdStore.Value;
+			
+			AssemblyId = LoadAssemblyTranslation.Get(AssemblyId);
 		}
 
 		public bool Equals (Uid other)

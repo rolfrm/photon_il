@@ -38,8 +38,6 @@ namespace PhotonIl
 
 		public Dict<Uid, Types> types = new Dict<Uid, Types> ();
 		public Dict<Uid, string> type_name = new Dict<Uid, string> ();
-		public Dict<Uid, int> type_size = new Dict<Uid, int> ();
-		public Dict<Uid, bool> is_floating_point = new Dict<Uid, bool> ();
 
 		public Dict<Uid, Uid> FunctionReturnType = new Dict<Uid, Uid> ();
 		public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo> ();
@@ -77,6 +75,7 @@ namespace PhotonIl
 		string AssemblyName () => $"{asmId}.dll";
 
 		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
+		Dict<int,Assembly> loadedAssemblyId = new Dict<int, Assembly>();
 
 		public readonly Uid Add;
 		public readonly Uid Subtract;
@@ -97,26 +96,34 @@ namespace PhotonIl
 
 		Dict<Uid,MacroSpecDelegate> macroSpecs = new Dict<Uid, MacroSpecDelegate> ();
 
+		[ProtoContract]
+		public struct Savable{
+			[ProtoMember(1)]
+			public Dict<Uid, string> TypeName;
+
+			[ProtoMember(2)]
+			public Dict<Uid, string> CsTypeNames;
+
+			[ProtoMember(3)]
+			public Dict<Uid, Tuple<string, string>> FuncNames;
+
+		};
+
 		public void Load(IlGen gen){
 
 		}
 
 		public void LoadData(Assembly asm, object serialized){
-			var lut = (Dict<Uid, Tuple<string, string>>)serialized;
-			foreach (var item in lut) {
-				var type = asm.GetType (item.Value.Item1);
-				if (type == null)
-					continue;
-				var method = type.GetMethod (item.Value.Item2);
-				FunctionInvocation [Uid.CreateNew ()] = method;
-			}
+			
 		}
 		public object Save(){
-			var functionTypeNames = new Dict<Uid, Tuple<string, string>>();
-			foreach (var f in FunctionInvocation) {
-				functionTypeNames [f.Key] = Tuple.Create(f.Value.DeclaringType.FullName, f.Value.Name);
-			}
-			return functionTypeNames;
+
+			return new Savable {
+				TypeName = type_name.LocalOnly(),
+				CsTypeNames = generatedStructs.LocalOnly().ConvertValues(x => x.FullName),
+				FuncNames = this.FunctionInvocation.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name))
+			};
+
 		}
 		Dict<Type, IPhotonModule> modules = new Dict<Type, IPhotonModule>();
 
@@ -136,14 +143,11 @@ namespace PhotonIl
 		}
 
 
-		public Uid AddPrimitive (string name, int size, Type dotNetType = null, bool is_float = false)
+		public Uid AddPrimitive (string name, Type dotNetType)
 		{
 			var prim = Uid.CreateNew ();
 			types.Add (prim, Types.Primitive);
-			type_size.Add (prim, size);
 			type_name.Add (prim, name);
-			if (is_float)
-				is_floating_point.Add (prim, is_float);
 			generatedStructs.Add (prim, dotNetType);
 			return prim;
 		}
@@ -166,17 +170,16 @@ namespace PhotonIl
 			modules [typeof(IlGen)] = this;
 			if (bare)
 				return;
-			U8Type = AddPrimitive ("u8", 1, typeof(byte));
-			U16Type = AddPrimitive ("u16", 2, typeof(short));
-			U32Type = AddPrimitive ("u32", 4, typeof(uint));
-			I32Type = AddPrimitive ("i32", 4, typeof(int));
-			F32Type = AddPrimitive ("f32", 4, typeof(float), is_float: true);
-			F64Type = AddPrimitive ("f64", 8, typeof(double), is_float: true);
+			U8Type = AddPrimitive ("u8", typeof(byte));
+			U16Type = AddPrimitive ("u16", typeof(short));
+			U32Type = AddPrimitive ("u32", typeof(uint));
+			I32Type = AddPrimitive ("i32", typeof(int));
+			F32Type = AddPrimitive ("f32", typeof(float));
+			F64Type = AddPrimitive ("f64", typeof(double));
 
-			VoidType = AddPrimitive ("void", 0);
-			StringType = AddPrimitive ("string", 0, typeof(string));
+			VoidType = AddPrimitive ("void", typeof(void));
+			StringType = AddPrimitive ("string", typeof(string));
 			UidType = addCSharpType (typeof(Uid));
-			Assert.IsTrue (this.type_size.Get (U8Type) == 1);
 			F.ToString ();A.ToString ();
 
 
@@ -262,16 +265,15 @@ namespace PhotonIl
 				var constantType = ConstantType.Get (expr);
 				if (constantType != Uid.Default) {
 					if (this.types.Get (constantType) == Types.Primitive) {
-						int size = this.type_size.Get (constantType);
-						bool isfloat = this.is_floating_point.Get (constantType);
-						if (isfloat && size == 4)
+						
+						if (constantType == F32Type)
 							Interact.Emit (OpCodes.Ldc_R4, (float)Convert.ChangeType (ConstantValue.Get (expr), typeof(float)));
-						else if (isfloat && size == 8)
+						else if (constantType == F64Type)
 							Interact.Emit (OpCodes.Ldc_R8, (double)Convert.ChangeType (ConstantValue.Get (expr), typeof(double)));
-						else if (size <= 4)
+						else if (constantType == I32Type || constantType == U32Type)
 							Interact.Emit (OpCodes.Ldc_I4, (int)Convert.ChangeType (ConstantValue.Get (expr), typeof(int)));
-						else if (size == 8)
-							Interact.Emit (OpCodes.Ldc_I8, (long)Convert.ChangeType (ConstantValue.Get (expr), typeof(long)));
+						//else if (constantType == U64Type)
+						//	Interact.Emit (OpCodes.Ldc_I8, (long)Convert.ChangeType (ConstantValue.Get (expr), typeof(long)));
 						else
 							throw new Exception ("Cannot load type");
 						return constantType;
@@ -751,51 +753,78 @@ namespace PhotonIl
 
 		// Pack all the data needed. Most importantly, the types and methods generated. 
 		public void Save(string filepath){
-			builder.Save (AssemblyName ());
+			if(builder != null)
+				builder.Save (AssemblyName ());
 			File.Delete (filepath);
 			using (var str = File.OpenWrite (filepath)) {
-				var bytes = File.ReadAllBytes (AssemblyName ());
+				var bytes = builder == null ? new byte[0] : File.ReadAllBytes (AssemblyName ());
 				Serializer.SerializeWithLengthPrefix (str, bytes, PrefixStyle.Base128,1);
+				var assemblyidlut = new Dict<int, string> ();
+				foreach (var item in loadedAssemblyId)
+					assemblyidlut.Add (item.Key, item.Value.FullName);
+				Serializer.SerializeWithLengthPrefix (str, loadedAssemblyId, PrefixStyle.Base128,2);
+				int fieldIndex = 3;
 				foreach (var mod in modules) {
-					var serial = new Serialized{ TypeName = mod.Key.FullName, Data = mod.Value.Save () };
-					if (serial.Data != null) {
-						Serializer.SerializeWithLengthPrefix (str, serial.TypeName, PrefixStyle.Base128,2);
-						Serializer.SerializeWithLengthPrefix (str, serial.Data.GetType().FullName, PrefixStyle.Base128,3);
-						Serializer.NonGeneric.SerializeWithLengthPrefix (str, serial.Data, PrefixStyle.Base128,4);
-					}
+					var data = mod.Value.Save ();
+					if (data == null)
+						continue;
+					var typename = mod.Key.FullName;
+					var dataTypeName = data.GetType ().FullName;
+					Serializer.SerializeWithLengthPrefix (str, typename, PrefixStyle.Base128,fieldIndex++);
+					Serializer.SerializeWithLengthPrefix (str, dataTypeName, PrefixStyle.Base128,fieldIndex++);
+					Serializer.NonGeneric.SerializeWithLengthPrefix (str, data, PrefixStyle.Base128,fieldIndex++);
 				}
 			}
 		}
-
+		static int assemblyStoreId = 1;
 		public void Load(string filepath){
 			
 			byte[] bytedata = null;
 			using (var str = File.OpenRead (filepath)) {
 				bytedata = ProtoBuf.Serializer.DeserializeWithLengthPrefix<byte[]> (str, PrefixStyle.Base128,1);
+				var assemblyloadIds = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Dict<int, string>> (str, PrefixStyle.Base128,2);
+				// before loading this assembly, make sure the others are loaded.
 				Assembly asm = null;
-				{
+				if(bytedata.Length > 0){
 					var rasm = Assembly.ReflectionOnlyLoad (bytedata);
 					var guid = Guid.Parse (rasm.GetCustomAttribute<GuidAttribute> ().Value);
 					var asms = AppDomain.CurrentDomain.GetAssemblies ();
 					asm = asms.FirstOrDefault (a => a.FullName == rasm.FullName);
 					if (loadedAssemblies.Contains (guid))
 						return;
+					asm = asm ?? Assembly.Load (bytedata);
 				}
 
-				asm = asm ?? Assembly.Load (bytedata);
-				Uid.AssemblyIdStore.Value = 1;
+
+				Dict<int,int> translation = new Dict<int, int> ();
+				translation [0] = assemblyStoreId++;
+				foreach (var kv in assemblyloadIds) {
+					var id = kv.Key;
+					var val = kv.Value;
+					translation [id] = loadedAssemblyId.First (x => x.Value.FullName == val).Key;
+				}
+
+				Uid.LoadAssemblyTranslation = translation;
+
+				int fieldIndex = 3;
 				while (str.Position + 1 <= str.Length) {
-					var s = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,2);
-					var s2 = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,3);
+					var s = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,fieldIndex++);
+					var s2 = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,fieldIndex++);
 					var tp = System.Type.GetType (s);
 					var tp2 = System.Type.GetType (s2);
 					object obj;
 					bool ok = ProtoBuf.Serializer.NonGeneric.TryDeserializeWithLengthPrefix(str, PrefixStyle.Base128, fld => tp2, out obj);
+					fieldIndex++;
 					Assert.IsTrue (ok);
 					GetModule (tp).LoadData (asm, obj);
 				}
-				Uid.AssemblyIdStore.Value = 0;
+				Uid.LoadAssemblyTranslation = new Dict<int,int>();
 			}
 		}
+
+		public void LoadReference(string path){
+			Load (path);
+		}
+
 	}
 }

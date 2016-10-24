@@ -342,7 +342,7 @@ namespace PhotonIl
 				}
 				gen.Save ("Workspace1.bin");
 			}
-
+			return;
 			{
 				var gen = new IlGen ();
 				gen.Load ("Workspace1.bin");
@@ -355,6 +355,26 @@ namespace PhotonIl
 			}
 			bool equals = dec1 == dec2;
 			Console.WriteLine ($"equals? {equals}");
+		}
+
+		static public void Test14(){
+			{
+				var gen = new IlGen (false);
+				gen.Save ("baseworkspace.bin");
+			}
+			{
+				var gen = new IlGen (true);
+				gen.LoadReference ("baseworkspace.bin");
+				var sub = gen.Sub;;
+				{
+					var pi_test_id = gen.DefineFunction ("pi_test2", gen.F64Type);
+					gen.DefineFcnBody (pi_test_id, sub(gen.Add, gen.DefineConstant (gen.F64Type, Math.PI), gen.DefineConstant (gen.F64Type, Math.PI)));
+					gen.GenerateIL (pi_test_id);
+					var m = gen.FunctionInvocation.Get (pi_test_id);
+					var result = m.Invoke (null, null);
+					Assert.AreEqual (result, Math.PI + Math.PI);
+				}
+			}
 
 		}
 

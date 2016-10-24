@@ -17,7 +17,26 @@ namespace PhotonIl
 
 		}
 
+		public Dict<K,V2> ConvertValues<V2>(Func<V,V2> f){
+			Dict<K,V2> @new = new Dict<K, V2> ();
+			foreach (var x in this) {
+				@new [x.Key] = f (x.Value);
+			}
+			return @new;
+		}
 	}
+
+	public static class DictExtension
+	{
+		public static Dict<Uid, T> LocalOnly<T>(this Dict<Uid, T> self){
+			Dict<Uid, T> d = new Dict<Uid, T> ();
+			foreach (var x in self)
+				if (x.Key.AssemblyId == 0)
+					d [x.Key] = x.Value;
+			return d;
+		}
+	}
+
 	[Serializable]
 	public class MultiDict<K, V>{
 		Dictionary<K, List<V>> dict = new Dictionary<K, List<V>>();
