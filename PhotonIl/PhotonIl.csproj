@@ -26,6 +26,7 @@
       <HintPath>..\protobuf-net.2.1.0\lib\net451\protobuf-net.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

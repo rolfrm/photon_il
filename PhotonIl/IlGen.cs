@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Serialization.Formatters.Binary;
 using ProtoBuf.Meta;
 using ProtoBuf;
+using System.IO.Compression;
 
 namespace PhotonIl
 {
@@ -788,7 +789,7 @@ namespace PhotonIl
 			if(builder != null)
 				builder.Save (AssemblyName ());
 			File.Delete (filepath);
-			using (var str = File.OpenWrite (filepath)) {
+			using (var str = new GZipStream(File.OpenWrite (filepath), CompressionMode.Compress,false)) {
 				var bytes = builder == null ? new byte[0] : File.ReadAllBytes (AssemblyName ());
 				Serializer.SerializeWithLengthPrefix (str, bytes, PrefixStyle.Base128,1);
 				var assemblyidlut = new Dict<int, string> ();
@@ -812,7 +813,7 @@ namespace PhotonIl
 		public void Load(string filepath){
 			
 			byte[] bytedata = null;
-			using (var str = File.OpenRead (filepath)) {
+			using (var str = new GZipStream(File.OpenRead (filepath), CompressionMode.Decompress,false)) {
 				bytedata = ProtoBuf.Serializer.DeserializeWithLengthPrefix<byte[]> (str, PrefixStyle.Base128,1);
 				var assemblyloadIds = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Dict<int, string>> (str, PrefixStyle.Base128,2);
 				// before loading this assembly, make sure the others are loaded.
@@ -839,8 +840,11 @@ namespace PhotonIl
 				Uid.LoadAssemblyTranslation = translation;
 
 				int fieldIndex = 3;
-				while (str.Position + 1 <= str.Length) {
+
+				while (str.CanRead) {
 					var s = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,fieldIndex++);
+					if (s == null)
+						break;
 					var s2 = ProtoBuf.Serializer.DeserializeWithLengthPrefix<string> (str, PrefixStyle.Base128,fieldIndex++);
 					var tp = System.Type.GetType (s);
 					var tp2 = System.Type.GetType (s2);
