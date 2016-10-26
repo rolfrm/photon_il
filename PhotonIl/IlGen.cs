@@ -31,6 +31,13 @@ namespace PhotonIl
 		Struct
 	}
 
+	public class MacroAttribute : Attribute{
+		public string Name;
+		public MacroAttribute(string name){
+			Name = name;
+		}
+	}
+
 	public class IlGen : IPhotonModule
 	{
 		public BaseFunctions F { get { return GetModule<BaseFunctions> (); } }
@@ -42,19 +49,19 @@ namespace PhotonIl
 		public Dict<Uid, Uid> FunctionReturnType = new Dict<Uid, Uid> ();
 		public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo> ();
 		public Dict<Uid, string> FunctionName = new Dict<Uid, string> ();
-		MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid> ();
+		public MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid> ();
 		Dict<Uid, Uid> functionBody = new Dict<Uid, Uid> ();
 
-		public Dict<Uid, Func<Uid, IlGen, Uid>> Macros = new Dict<Uid, Func<Uid, IlGen, Uid>> ();
-		public readonly Uid U8Type;
-		public readonly Uid U16Type;
-		public readonly Uid U32Type;
-		public readonly Uid I32Type;
-		public readonly Uid F32Type;
-		public readonly Uid F64Type;
-		public readonly Uid VoidType;
-		public readonly Uid StringType;
-		public readonly Uid UidType;
+		public Dict<Uid, MethodInfo> Macros = new Dict<Uid, MethodInfo> ();
+		public Uid U8Type { get { return type_name.Inv("u8");}}
+		public Uid U16Type { get { return type_name.Inv("u16");}}
+		public Uid U32Type { get { return type_name.Inv("u32");}}
+		public Uid I32Type { get { return type_name.Inv("i32");}}
+		public Uid F32Type { get { return type_name.Inv("f32");}}
+		public Uid F64Type { get { return type_name.Inv("f64");}}
+		public Uid VoidType { get { return type_name.Inv("void");}}
+		public Uid StringType { get { return type_name.Inv("string");}}
+		public Uid UidType { get { return type_name.Inv("uid");}}
 
 		public HashSet<Uid> Expressions = new HashSet<Uid> ();
 		public MultiDict<Uid, Uid> SubExpressions = new MultiDict<Uid, Uid> ();
@@ -77,15 +84,10 @@ namespace PhotonIl
 		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
 		Dict<int,Assembly> loadedAssemblyId = new Dict<int, Assembly>();
 
-		public readonly Uid Add;
-		public readonly Uid Subtract;
-		public readonly Uid Multiply;
-		public readonly Uid Divide;
-		public readonly Uid RightShift;
-		public readonly Uid LeftShift;
-		public readonly Uid BitOr;
-		public readonly Uid BitAnd;
-		public readonly Uid Modulus;
+		public Uid Add { get { return SymbolNames ["+"]; } }
+		public Uid Subtract { get { return SymbolNames ["-"]; } }
+		public Uid Multiply { get { return SymbolNames ["*"]; } }
+		public Uid Divide { get { return SymbolNames ["/"]; } }
 
 		Dict<string, Uid> SymbolNames = new Dict<string, Uid> ();
 		HashSet<Uid> Symbols = new HashSet<Uid> ();
@@ -107,6 +109,15 @@ namespace PhotonIl
 			[ProtoMember(3)]
 			public Dict<Uid, Tuple<string, string>> FuncNames;
 
+			[ProtoMember(4)]
+			public Dict<Uid, string> FunctionNames;
+
+			[ProtoMember(5)]
+			public Dict<Uid, Tuple<string, string>> Macros;
+
+			[ProtoMember(6)]
+			public Dict<Uid, string> MacroNames;
+
 		};
 
 		public void Load(IlGen gen){
@@ -114,6 +125,28 @@ namespace PhotonIl
 		}
 
 		public void LoadData(Assembly asm, object serialized){
+			var savable = (Savable)serialized;
+			if(savable.TypeName != null)
+			foreach (var x in savable.TypeName)
+				type_name [x.Key] = x.Value;
+			if(savable.CsTypeNames != null)
+			foreach (var x in savable.CsTypeNames)
+				generatedStructs [x.Key] = asm == null ? Type.GetType(x.Value) :  asm.GetType (x.Value);
+			if(savable.FuncNames != null)
+			foreach (var x in savable.FuncNames)
+				FunctionInvocation [x.Key] = (asm == null ? Type.GetType(x.Value.Item1) : asm.GetType (x.Value.Item1)).GetMethod (x.Value.Item2);
+			if (savable.FunctionNames != null)
+				foreach (var x in savable.FunctionNames) {
+					FunctionName [x.Key] = x.Value;
+				}
+			if(savable.Macros != null)
+			foreach (var x in savable.Macros)
+				Macros [x.Key] = (asm == null ? Type.GetType(x.Value.Item1) : asm.GetType (x.Value.Item1)).GetMethod (x.Value.Item2);
+			if(savable.MacroNames != null)
+			foreach (var x in savable.MacroNames) {
+				MacroNames [x.Key] = x.Value;
+				SymbolNames [x.Value] = x.Key;
+			}
 			
 		}
 		public object Save(){
@@ -121,10 +154,16 @@ namespace PhotonIl
 			return new Savable {
 				TypeName = type_name.LocalOnly(),
 				CsTypeNames = generatedStructs.LocalOnly().ConvertValues(x => x.FullName),
-				FuncNames = this.FunctionInvocation.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name))
+				FuncNames = this.FunctionInvocation.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name)),
+				Macros = this.Macros.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name)),
+				MacroNames = this.MacroNames.LocalOnly(),
+				FunctionNames = this.FunctionName.LocalOnly()
 			};
 
 		}
+
+		public bool IsBare = false;
+
 		Dict<Type, IPhotonModule> modules = new Dict<Type, IPhotonModule>();
 
 		public IPhotonModule GetModule(Type t){
@@ -152,7 +191,7 @@ namespace PhotonIl
 			return prim;
 		}
 
-		Uid addCSharpType (Type type)
+		Uid addCSharpType (Type type, string name = null)
 		{
 			if (type.IsValueType == false)
 				throw new Exception ("Unable to add non-value type");
@@ -161,51 +200,40 @@ namespace PhotonIl
 
 			this.types.Add (uid, Types.Struct);
 			this.generatedStructs.Add (uid, type);
-			this.type_name.Add (uid, type.Name);
+			this.type_name.Add (uid, name ?? type.Name);
 			return uid;
 		}
 
 		public IlGen (bool bare = false)
 		{
 			modules [typeof(IlGen)] = this;
+			IsBare = bare;
 			if (bare)
 				return;
-			U8Type = AddPrimitive ("u8", typeof(byte));
-			U16Type = AddPrimitive ("u16", typeof(short));
-			U32Type = AddPrimitive ("u32", typeof(uint));
-			I32Type = AddPrimitive ("i32", typeof(int));
-			F32Type = AddPrimitive ("f32", typeof(float));
-			F64Type = AddPrimitive ("f64", typeof(double));
+			AddPrimitive ("u8", typeof(byte));
+			AddPrimitive ("u16", typeof(short));
+			AddPrimitive ("u32", typeof(uint));
+			AddPrimitive ("i32", typeof(int));
+			AddPrimitive ("f32", typeof(float));
+			AddPrimitive ("f64", typeof(double));
 
-			VoidType = AddPrimitive ("void", typeof(void));
-			StringType = AddPrimitive ("string", typeof(string));
-			UidType = addCSharpType (typeof(Uid));
-			F.ToString ();A.ToString ();
+			AddPrimitive ("void", typeof(void));
+			AddPrimitive ("string", typeof(string));
+			addCSharpType (typeof(Uid), "uid");
 
+			foreach (var m in GetType().GetMethods(BindingFlags.Public | BindingFlags.Static)) {
+				
+				var attr = m.GetCustomAttribute<MacroAttribute> ();
+				if (attr == null)
+					continue;
+				var id = Sym (attr.Name);
+				Macros.Add (id, m);
+				MacroNames.Add (id, attr.Name);
+			}
 
-			Add = genBaseFunctor (OpCodes.Add, "+");
-			Subtract = genBaseFunctor (OpCodes.Sub, "-");
-			Multiply = genBaseFunctor (OpCodes.Mul, "*");
-			Divide = genBaseFunctor (OpCodes.Div, "/");
-			RightShift = genBaseFunctor (OpCodes.Shr, ">>");
-			LeftShift = genBaseFunctor (OpCodes.Shl, "<<");
-			BitOr = genBaseFunctor (OpCodes.Or, "|");
-			BitAnd = genBaseFunctor (OpCodes.And, "&");
-			Modulus = genBaseFunctor (OpCodes.Rem, "%");
-
-			Macros.Add (Let = Uid.CreateNew (), genLet);
-			Macros.Add (Progn = Uid.CreateNew(), genProgn);
-			Macros.Add (Set = Uid.CreateNew (), genSet);
-			Macros.Add (getStructAccess =  Uid.CreateNew (), genStructAccess);
+			GetModule<BaseFunctions> ();
+			GetModule<ArrayModule> ();
 		}
-
-		/*
-		public void AddMacro(Uid symbol, object holder, string methodname){
-			var tp = holder.GetType ();
-			var method = tp.GetMethod (methodname, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-			if (method != null)
-				Macros.Add (symbol, method);
-		}*/
 
 		public Uid getPhotonType (Type t)
 		{
@@ -312,7 +340,7 @@ namespace PhotonIl
 			{
 				var gen = Macros.Get (subexprs [0]);
 				if (gen != null)
-					return gen (expr, this);
+					return (Uid)gen.Invoke(null, new object[]{ expr});
 			}
 
 			{	
@@ -375,6 +403,8 @@ namespace PhotonIl
 			var subexprs = SubExpressions.Get (expr);
 			var function = subexprs [0];
 			if (FunctionInvocation.Get (function) == null) {
+				if (functionBody.Get (expr) == Uid.Default)
+					throw new CompilerError (expr, "Not a function");
 				GenerateIL (function);
 			}
 			var mt = function;
@@ -515,18 +545,18 @@ namespace PhotonIl
 			return id;
 		}
 
-		Uid getStructAccess;
-
 		public Uid GetStructAccessor (Uid member, Uid structexpr)
 		{
 			var structid = structMembers.Entries.FirstOrDefault (e => e.Value.Contains (member)).Key;
-			return Sub (getStructAccess, structid, member, structexpr);
+			return Sub (SymbolNames["struct access"], structid, member, structexpr);
 		}
 
 		HashSet<Uid> ReferenceReq = new HashSet<Uid> ();
 
-		public static Uid genStructAccess (Uid expr, IlGen gen)
+		[Macro("struct access")]
+		public static Uid genStructAccess (Uid expr)
 		{
+			var gen = Interact.Current;
 			var sexprs = gen.SubExpressions.Get (expr);
 			var structid = sexprs [1];
 			var memberid = sexprs [2];
@@ -552,23 +582,17 @@ namespace PhotonIl
 			return gen.ArgumentType.Get (memberid);
 		}
 
-		Uid InitStruct;
-
-		public static Uid GenStruct (Uid expr, IlGen gen)
+		[Macro("init struct")]
+		public static Uid GenStruct (Uid expr)
 		{
-			var subexprs = gen.SubExpressions.Get (expr);
-			gen.GenStructConstructorIl (subexprs [1]);
+			var subexprs = Interact.Current.SubExpressions.Get (expr);
+			Interact.Current.GenStructConstructorIl (subexprs [1]);
 			return subexprs [1];
 		}
 
 		public Uid[] GetStructConstructor (Uid struct_id)
 		{
-			if (InitStruct == Uid.Default) {
-				InitStruct = Uid.CreateNew ();
-				Macros.Add (InitStruct, GenStruct);
-			}
-
-			return new[] { InitStruct, struct_id };
+			return new[] { SymbolNames["init struct"], struct_id };
 		}
 
 		void GenStructConstructorIl (Uid structid)
@@ -593,38 +617,37 @@ namespace PhotonIl
 			return id;
 		}
 
-
-
 		public void DefineFcnBody (Uid fcn, Uid body)
 		{
 			functionBody.Add (fcn, body);
 		}
 
-		public readonly Uid Progn;
+		public Uid Progn { get { return SymbolNames ["progn"];}}
 
-		public Uid genProgn (Uid expr, IlGen gen)
+		[Macro("progn")]
+		public static Uid genProgn (Uid expr)
 		{
-			var exprs = gen.SubExpressions.Get (expr);
+			var exprs = Interact.Current.SubExpressions.Get (expr);
 			if (exprs.Count == 1)
-				return VoidType;
+				return Interact.Current.VoidType;
 			if (exprs.Count == 2) {
-				return CompileSubExpression (exprs [1]);
+				return Interact.Current.CompileSubExpression (exprs [1]);
 			}
 			for (int i = 1; i < exprs.Count; i++) {
-				Uid type = CompileSubExpression (exprs [i]);
+				Uid type = Interact.Current.CompileSubExpression (exprs [i]);
 				if (i == exprs.Count - 1) {
 					return type;
-				} else if (type != VoidType) {
+				} else if (type != Interact.Current.VoidType) {
 					Interact.Emit (OpCodes.Pop);
 				}
 			}
-			Debug.Fail ("Unreachable");
+			Assert.Fail ("Unreachable");
 			return Uid.Default;
 		}
 
-		public Uid genAdd (OpCode opcode, Uid expr, IlGen gen)
+		public Uid genbase (OpCode opcode, Uid expr)
 		{
-			var subs = gen.SubExpressions.Get (expr);
+			var subs = SubExpressions.Get (expr);
 			if (subs.Count < 2)
 				throw new CompilerError (expr, "Invalid number of arguments for +");
 			Uid type = CompileSubExpression (subs [1]);
@@ -637,24 +660,31 @@ namespace PhotonIl
 			return type;
 		}
 
-		Dict<OpCode, Uid> BaseOpCodes = new Dict<OpCode, Uid> ();
-		public readonly Dict<Uid, string> MacroNames = new Dict<Uid, string> ();
-
-		public Uid genBaseFunctor (OpCode c, string name)
-		{
-			if (BaseOpCodes.ContainsKey (c) == false) {
-				Uid id = Uid.CreateNew ();
-				BaseOpCodes.Add (c, id);
-				Macros.Add (id, (x, z) => genAdd (c, x, z));
-				MacroNames.Add (id, name);
-
-			}
-			return BaseOpCodes.Get (c);
+		[Macro("+")]
+		public static Uid genAdd(Uid expr){
+			return Interact.Current.genbase (OpCodes.Add, expr);
 		}
 
-		public readonly Uid Let;
+		[Macro("-")]
+		public static Uid genSub(Uid expr){
+			return Interact.Current.genbase (OpCodes.Sub, expr);
+		}
 
-		public readonly Uid Set;
+		[Macro("*")]
+		public static Uid genMul(Uid expr){
+			return Interact.Current.genbase (OpCodes.Mul, expr);
+		}
+
+		[Macro("/")]
+		public static Uid genDiv(Uid expr){
+			return Interact.Current.genbase (OpCodes.Div, expr);
+		}
+
+		public readonly Dict<Uid, string> MacroNames = new Dict<Uid, string> ();
+
+		public Uid Let { get { return SymbolNames ["let"];}}
+
+		public Uid Set { get { return SymbolNames ["set"];}}
 
 		//(setf (member-x sym) 5)
 		// vs
@@ -663,14 +693,15 @@ namespace PhotonIl
 		// to work.
 		public Dict<Uid,Uid> SetExprs = new Dict<Uid,Uid> ();
 
-
-		public Uid genSet (Uid expr, IlGen gen)
+		[Macro("set")]
+		public static Uid genSet (Uid expr)
 		{
-			var exprs = SubExpressions.Get (expr);
+			var gen = Interact.Current; //can blau
+			var exprs = gen.SubExpressions.Get (expr);
 			// set, accessor, value
-			SetExprs.Add (exprs [1], exprs [2]);
-			Uid typeid2 = CompileSubExpression (exprs [1]);
-			if (SetExprs.ContainsKey (exprs [1]))
+			gen.SetExprs.Add (exprs [1], exprs [2]);
+			Uid typeid2 = gen.CompileSubExpression (exprs [1]);
+			if (gen.SetExprs.ContainsKey (exprs [1]))
 				throw new CompilerError (expr, "Sub expression does not support set");
 			return typeid2;
 		}
@@ -683,15 +714,16 @@ namespace PhotonIl
 		}
 
 		StackLocal<Dict<Uid, LocalSymData>> localSymbols = new StackLocal<Dict<Uid, LocalSymData>> (new Dict<Uid, LocalSymData> ());
-
-		public Uid genLet (Uid expr, IlGen gen)
+		[Macro("let")]
+		public static Uid genLet (Uid expr)
 		{
+			var gen = Interact.Current;
 			var exprs = gen.SubExpressions.Get (expr);
-			Uid type = CompileSubExpression (exprs [2]);
-			var local = Interact.DeclareLocal (GetCSType (type));
+			Uid type = gen.CompileSubExpression (exprs [2]);
+			var local = Interact.DeclareLocal (gen.GetCSType (type));
 			Interact.Emit (OpCodes.Dup);
 			Interact.Emit (OpCodes.Stloc, local);
-			localSymbols.Value.Add (exprs [1], new LocalSymData { Local = local, TypeId = type });
+			gen.localSymbols.Value.Add (exprs [1], new LocalSymData { Local = local, TypeId = type });
 			return type;
 		}
 

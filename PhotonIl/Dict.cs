@@ -13,6 +13,10 @@ namespace PhotonIl
 			return default(V);
 		}
 
+		public K Inv(V x){
+			return this.FirstOrDefault (y => y.Value.Equals (x)).Key;
+		}
+
 		public Dict() : base(){
 
 		}

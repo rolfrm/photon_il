@@ -313,7 +313,7 @@ namespace PhotonIl
 		}
 
 		static public void Test13(){
-			Type dec1, dec2, t1, t2;
+			
 			{ // Part 1. generate a simple function.
 				var gen = new IlGen ();
 				var sub = gen.Sub;
@@ -323,7 +323,6 @@ namespace PhotonIl
 					gen.GenerateIL (pi_test_id);
 					var m = gen.FunctionInvocation.Get (pi_test_id);
 					var result = m.Invoke (null, null);
-					dec1 = m.DeclaringType;
 					Assert.AreEqual (result, Math.PI);
 				}
 				{
@@ -335,29 +334,14 @@ namespace PhotonIl
 					Assert.AreEqual (result, Math.PI);
 				}
 
-				{
-					var typeId = gen.DefineStruct(gen.DefineVariable(gen.StringType, null, "vec2i"),gen.DefineArgument("x", gen.I32Type), gen.DefineArgument("y", gen.I32Type));
-					var cstype = gen.GetCSType (typeId);
-					t1 = cstype;
-				}
 				gen.Save ("Workspace1.bin");
 			}
-			return;
-			{
-				var gen = new IlGen ();
-				gen.Load ("Workspace1.bin");
-				System.IO.File.Delete ("Workspace1.bin");
-				var pi_test_id = gen.FunctionName.First (f => f.Value == "pi_test").Key;
-				var m = gen.FunctionInvocation.Get (pi_test_id);
-				var result = m.Invoke (null, null);
-				Assert.AreEqual (result, Math.PI);
-				dec2 = m.DeclaringType;
-			}
-			bool equals = dec1 == dec2;
-			Console.WriteLine ($"equals? {equals}");
 		}
 
 		static public void Test14(){
+			System.IO.File.Delete ("baseworkspace.bin");
+			System.IO.File.Delete ("workspace2.bin");
+
 			{
 				var gen = new IlGen (false);
 				gen.Save ("baseworkspace.bin");
@@ -365,7 +349,7 @@ namespace PhotonIl
 			{
 				var gen = new IlGen (true);
 				gen.LoadReference ("baseworkspace.bin");
-				var sub = gen.Sub;;
+				var sub = gen.Sub;
 				{
 					var pi_test_id = gen.DefineFunction ("pi_test2", gen.F64Type);
 					gen.DefineFcnBody (pi_test_id, sub(gen.Add, gen.DefineConstant (gen.F64Type, Math.PI), gen.DefineConstant (gen.F64Type, Math.PI)));
@@ -374,10 +358,19 @@ namespace PhotonIl
 					var result = m.Invoke (null, null);
 					Assert.AreEqual (result, Math.PI + Math.PI);
 				}
+				gen.Save ("workspace2.bin");
 			}
 
 		}
-
+		static public void Test15(){
+			var gen = new IlGen (true);
+			gen.LoadReference ("baseworkspace.bin");
+			gen.LoadReference ("workspace2.bin");
+			var pi_test_id = gen.FunctionName.First (x => x.Value == "pi_test2").Key;
+			var m = gen.FunctionInvocation.Get (pi_test_id);
+			var result = m.Invoke (null, null);
+			Assert.AreEqual (result, Math.PI + Math.PI);
+		}
 	}
 
     public class Assert
@@ -397,6 +390,10 @@ namespace PhotonIl
 		public static void IsTrue(bool value){
 			if(!value)
 				throw new AssertionFailedException();
+		}
+
+		public static void Fail(string message){
+			throw new AssertionFailedException();
 		}
     }
 }

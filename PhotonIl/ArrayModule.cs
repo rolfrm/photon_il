@@ -34,11 +34,15 @@ namespace PhotonIl
 
 		public void Load(IlGen gen){
 			this.gen = gen;
+
 			CreateArray = gen.Sym ("Create Array");
 			ArrayCount = gen.Sym ("Array Count");
 			ArrayAccess = gen.Sym ("Array Access");
 
 			gen.TypeGetters.Add (getArrayCsType);
+
+			if (gen.IsBare)
+				return;
 
 			GetSubExpressions = gen.DefineFunction("get subexpressions",ElemToArrayType(gen.UidType), gen.Arg("expr", gen.UidType));
 			gen.FunctionInvocation.Add (GetSubExpressions, GetType ().GetMethod (nameof(getSubExpressions), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public));
@@ -58,17 +62,13 @@ namespace PhotonIl
 
 		public void LoadData(Assembly asm, object serialized)
 		{
-			var newData = (ArrayModuleData)serialized;
-			var data2 = Save ();
+			
 		}
 
 
 
 		public object Save(){
-			return new ArrayModuleData {
-				ArrayElemTypeKeys = arrayElemTypes.Keys.ToArray (),
-				ArrayElemTypeValues = arrayElemTypes.Values.ToArray ()
-			};
+			return null;
 		}
 
 		public static Uid[] getSubExpressions(Uid expr){

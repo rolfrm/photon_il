@@ -255,7 +255,8 @@ namespace PhotonIl
 		public void BuildAndRun(){
 			
 			var body = gen.GetFunctionBody (Function);
-			Uid ret = gen.GenExpression (body);
+			var args = gen.FunctionArguments.Get (Function).ToArray();
+			Uid ret = gen.GenExpression (body, args);
 			gen.FunctionReturnType [Function] = ret;
 			if (ret != gen.VoidType) {
 				var fcn = gen.DefineFunction ("run", gen.VoidType);
