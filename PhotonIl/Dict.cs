@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ProtoBuf;
 
 namespace PhotonIl
 {
@@ -39,10 +40,19 @@ namespace PhotonIl
 					d [x.Key] = x.Value;
 			return d;
 		}
+
+		public static MultiDict<Uid, T> LocalOnly<T>(this MultiDict<Uid, T> self){
+			MultiDict<Uid, T> d = new MultiDict<Uid, T> ();
+			foreach (var x in self.Entries)
+				if (x.Key.AssemblyId == 0)
+					d.Add(x.Key, x.Value);
+			return d;
+		}
 	}
 
-	[Serializable]
+	[ProtoContract]
 	public class MultiDict<K, V>{
+		[ProtoMember(1)]
 		Dictionary<K, List<V>> dict = new Dictionary<K, List<V>>();
 		public void Add(K key, V value){
 			if(dict.ContainsKey(key) == false)
@@ -56,7 +66,7 @@ namespace PhotonIl
 				dict[key] = new List<V>{};
 			dict [key].AddRange (value);
 		}
-		List<V> empty = new List<V>();
+		static readonly List<V> empty = new List<V>();
 		public List<V> Get(K key){
 			if (dict.ContainsKey (key))
 				return dict [key];

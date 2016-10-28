@@ -47,6 +47,9 @@ namespace PhotonIl
 		public Dict<Uid, Types> types = new Dict<Uid, Types> ();
 		public Dict<Uid, string> type_name = new Dict<Uid, string> ();
 
+		public Dict<Uid, string> ArgumentName = new Dict<Uid, string> ();
+		public Dict<Uid, Uid> ArgumentType = new Dict<Uid, Uid> ();
+
 		public Dict<Uid, Uid> FunctionReturnType = new Dict<Uid, Uid> ();
 		public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo> ();
 		public Dict<Uid, string> FunctionName = new Dict<Uid, string> ();
@@ -119,6 +122,21 @@ namespace PhotonIl
 			[ProtoMember(6)]
 			public Dict<Uid, string> MacroNames;
 
+			[ProtoMember(7)]
+			public MultiDict<Uid, Uid> SubExpressions;
+
+			[ProtoMember(8)]
+			public Dict<Uid,Uid> FunctionReturnType;
+
+			[ProtoMember(9)]
+			public MultiDict<Uid,Uid> FunctionArguments;
+
+			[ProtoMember(10)]
+			public Dict<Uid, string> ArgumentName;
+			[ProtoMember(11)]
+			public Dict<Uid, Uid> ArgumentType;
+
+
 		};
 
 		public void Load(IlGen gen){
@@ -133,9 +151,11 @@ namespace PhotonIl
 			if(savable.CsTypeNames != null)
 			foreach (var x in savable.CsTypeNames)
 				generatedStructs [x.Key] = asm == null ? Type.GetType(x.Value) :  asm.GetType (x.Value);
-			if(savable.FuncNames != null)
-			foreach (var x in savable.FuncNames)
-				FunctionInvocation [x.Key] = (asm == null ? Type.GetType(x.Value.Item1) : asm.GetType (x.Value.Item1)).GetMethod (x.Value.Item2);
+			if (savable.FuncNames != null)
+				foreach (var x in savable.FuncNames) {
+					Type basetype = (asm == null ? Type.GetType (x.Value.Item1) : (asm.GetType (x.Value.Item1) ?? Type.GetType (x.Value.Item1)));
+					FunctionInvocation [x.Key] = basetype.GetMethod (x.Value.Item2, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+				}
 			if (savable.FunctionNames != null)
 				foreach (var x in savable.FunctionNames) {
 					FunctionName [x.Key] = x.Value;
@@ -148,6 +168,23 @@ namespace PhotonIl
 				MacroNames [x.Key] = x.Value;
 				SymbolNames [x.Value] = x.Key;
 			}
+			if(savable.SubExpressions != null)
+				foreach (var x in savable.SubExpressions.Entries)
+					if(x.Value != null)
+						SubExpressions.Add(x.Key, x.Value);
+			if(savable.FunctionReturnType != null)
+				foreach (var x in savable.FunctionReturnType)
+					FunctionReturnType.Add(x.Key, x.Value);
+			if(savable.FunctionArguments != null)
+				foreach (var x in savable.FunctionArguments.Entries)
+					if(x.Value != null)
+						FunctionArguments.Add(x.Key, x.Value);
+			if(savable.ArgumentName != null)
+				foreach (var x in savable.ArgumentName)
+					ArgumentName.Add(x.Key, x.Value);
+			if(savable.ArgumentType != null)
+				foreach (var x in savable.ArgumentType)
+					ArgumentType.Add(x.Key, x.Value);
 			
 		}
 		public object Save(){
@@ -155,10 +192,15 @@ namespace PhotonIl
 			return new Savable {
 				TypeName = type_name.LocalOnly(),
 				CsTypeNames = generatedStructs.LocalOnly().ConvertValues(x => x.FullName),
-				FuncNames = this.FunctionInvocation.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name)),
-				Macros = this.Macros.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.FullName, x.Name)),
+				FuncNames = this.FunctionInvocation.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name)),
+				Macros = this.Macros.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name)),
 				MacroNames = this.MacroNames.LocalOnly(),
-				FunctionNames = this.FunctionName.LocalOnly()
+				FunctionNames = this.FunctionName.LocalOnly(),
+				SubExpressions = this.SubExpressions.LocalOnly(),
+				FunctionReturnType = this.FunctionReturnType.LocalOnly(),
+				FunctionArguments = this.FunctionArguments.LocalOnly(),
+				ArgumentName = this.ArgumentName.LocalOnly(),
+				ArgumentType = this.ArgumentType.LocalOnly()
 			};
 
 		}
@@ -514,8 +556,7 @@ namespace PhotonIl
 			return uid;
 		}
 
-		public Dict<Uid, string> ArgumentName = new Dict<Uid, string> ();
-		public Dict<Uid, Uid> ArgumentType = new Dict<Uid, Uid> ();
+
 
 		public Uid DefineArgument (string name, Uid type)
 		{
@@ -860,6 +901,17 @@ namespace PhotonIl
 
 		public void LoadReference(string path){
 			Load (path);
+		}
+
+		public void AddFunctionInvocation(Type objType, string FunctionName){
+			var method = objType.GetMethod (FunctionName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+			Assert.IsTrue (method != null);
+			FunctionInvocation [Sym (FunctionName)] = method;
+			this.FunctionName [Sym (FunctionName)] = FunctionName;
+			var ret = method.ReturnType;
+			var pret = getPhotonType (ret);
+			this.FunctionReturnType.Add (Sym (FunctionName), pret);
+			this.FunctionArguments.Add (Sym (FunctionName), method.GetParameters ().Select (x => this.DefineArgument (x.Name, getPhotonType (x.ParameterType))));
 		}
 
 	}

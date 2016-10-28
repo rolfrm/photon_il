@@ -1,12 +1,26 @@
 ﻿using System;
+using System.IO;
 using PhotonIl;
 using System.Linq;
 
 
 namespace SimpleCli
 {
-	class MainClass
+	public class MainClass
 	{
+		
+		public static void exit(){
+			System.Environment.Exit (0);
+		}
+
+		public static void save(string filepath){
+
+		}
+
+		public static void load(string filepath){
+
+		}
+
 		public static void Main (string[] args)
 		{
 			Console.CursorVisible = true;
@@ -14,7 +28,20 @@ namespace SimpleCli
 
 			Console.WriteLine ("Welcome to Photon for .NET.");
 
-			var gen = new IlGen ();
+			var gen = new IlGen (true);
+			gen.LoadReference ("baseworkspace.bin");
+			File.Delete ("SimpleCli.bin");
+			if (!File.Exists ("SimpleCli.bin")) {
+				var gen2 = new IlGen ();
+				gen2.LoadReference ("baseworkspace.bin");
+				gen2.AddFunctionInvocation(typeof(MainClass), nameof(exit));
+				gen2.AddFunctionInvocation(typeof(MainClass), nameof(save));
+				gen2.AddFunctionInvocation(typeof(MainClass), nameof(load));
+				gen2.Save ("SimpleCli.bin");
+			}
+			gen.LoadReference ("SimpleCli.bin");
+
+
 			var cb = new CodeBuilder (gen);
 			cb.PushArgument ();
 
