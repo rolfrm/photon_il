@@ -100,7 +100,7 @@ namespace PhotonIl
 		public delegate Uid MacroDelegate (Uid expr);
 		public delegate Uid MacroSpecDelegate (Uid expr, int index, string suggestion);
 
-		Dict<Uid,MacroSpecDelegate> macroSpecs = new Dict<Uid, MacroSpecDelegate> ();
+		Dict<Uid,MethodInfo> macroSpecs = new Dict<Uid, MethodInfo> ();
 
 		[ProtoContract]
 		public struct Savable{
@@ -805,14 +805,22 @@ namespace PhotonIl
 		}
 
 
-		public void AddMacroSpec (Uid macro, MacroSpecDelegate func)
+		public void AddMacroSpec(Uid macro, Type declaringType, string methodName){
+			var m = declaringType.GetMethod (methodName, BindingFlags.Static | BindingFlags.Public);
+			Assert.IsTrue (m != null);
+			AddMacroSpec (macro, m);
+		}
+
+		public void AddMacroSpec (Uid macro, MethodInfo func)
 		{
 			macroSpecs.Add (macro, func);
 		}
 
 		public MacroSpecDelegate GetMacroSpec (Uid macro)
 		{
-			return macroSpecs.Get (macro);
+			if (macroSpecs.Get (macro) == null)
+				return null;
+			return new MacroSpecDelegate((Uid x, int y, string z) => (Uid)macroSpecs.Get (macro).Invoke (null, new Object[]{ x, y, z }));
 		}
 
 		public Uid GetFunctionBody (Uid fcn)

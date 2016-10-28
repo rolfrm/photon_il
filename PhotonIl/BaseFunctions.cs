@@ -34,7 +34,7 @@ namespace PhotonIl
 			gen.AddMacro (If, ifmacro);
 			gen.AddMacro (PrintAny, Printany);
 			gen.AddMacro (gen.Sym ("defun"), defunmacro);
-			gen.AddMacroSpec (gen.Sym ("defun"), defunMacroCompletions);
+			gen.AddMacroSpec (gen.Sym ("defun"), this.GetType(), nameof(defunMacroCompletions));
 		}
 
 		public void LoadData(Assembly asm, object serialized){

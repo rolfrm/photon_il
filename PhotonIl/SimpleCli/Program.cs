@@ -28,8 +28,8 @@ namespace SimpleCli
 
 			Console.WriteLine ("Welcome to Photon for .NET.");
 
-			gen = new IlGen (true);
-			gen.LoadReference ("baseworkspace.bin");
+			gen = new IlGen (false);
+			/*gen.LoadReference ("baseworkspace.bin");
 			File.Delete ("SimpleCli.bin");
 			if (!File.Exists ("SimpleCli.bin")) {
 				var gen2 = new IlGen (true);
@@ -39,7 +39,7 @@ namespace SimpleCli
 				gen2.AddFunctionInvocation(typeof(MainClass), nameof(load));
 				gen2.Save ("SimpleCli.bin");
 			}
-			gen.LoadReference ("SimpleCli.bin");
+			gen.LoadReference ("SimpleCli.bin");*/
 
 
 			var cb = new CodeBuilder (gen);
@@ -49,7 +49,8 @@ namespace SimpleCli
 				var keyinfo = Console.ReadKey ();
 				var key = keyinfo.Key;
 				var mod = keyinfo.Modifiers;
-
+				//Console.WriteLine ("{0} {1}", mod, key);
+				//continue;
 				if ((key == ConsoleKey.LeftArrow || key == ConsoleKey.RightArrow)
 				    && keyinfo.Modifiers == ConsoleModifiers.Shift) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
@@ -63,10 +64,11 @@ namespace SimpleCli
 				} else if (keyinfo.Key == ConsoleKey.Enter) {
 					if (mod == ConsoleModifiers.Alt)
 						cb.CreateSub ();
-					if(!gen.SubExpressions.Contains(cb.CurrentExpression)){
+					if (!gen.SubExpressions.Contains (cb.CurrentExpression)) {
 						cb.SelectCurrentOption ();
-					}
-					else{
+						if (gen.SubExpressions.Contains (cb.CurrentExpression))
+							cb.Enter ();
+					} else {
 						cb.Enter ();
 					}
 				} else if (key == ConsoleKey.Escape) {
@@ -85,11 +87,9 @@ namespace SimpleCli
 						str = str.Remove (str.Length - 1);
 						cb.SetString (str);
 					}
-				} else if (keyinfo.Modifiers == ConsoleModifiers.Control) {
-					if (key == ConsoleKey.C) {
-						cb.CleanSelectedExpression ();
-					}
-					if (key == ConsoleKey.N) {
+				} else if (mod == ConsoleModifiers.Control && key == ConsoleKey.C) {
+					cb.CleanSelectedExpression ();
+				}else if (mod == ConsoleModifiers.Control && key == ConsoleKey.N) {
 						Console.WriteLine ("");
 						try {
 							cb.SelectCurrentOption ();
@@ -99,13 +99,12 @@ namespace SimpleCli
 							Console.WriteLine ("Error: {0}", e.Message);
 							continue;
 						}
-					}
 
-				} else if (mod == ConsoleModifiers.Alt) {
-					if (key == ConsoleKey.K || key == ConsoleKey.I) {
-						cb.OptionIndex += key == ConsoleKey.K ? -1 : 1;
-					}
 
+				} else if (mod == ConsoleModifiers.Control) {
+					if (key == ConsoleKey.Q || key == ConsoleKey.A) {
+						cb.OptionIndex += key == ConsoleKey.A ? -1 : 1;
+					}
 				}
 				else if ((mod == 0 || mod == ConsoleModifiers.Shift) && keyinfo.KeyChar != 0) {
 					var str = cb.GetString ();
