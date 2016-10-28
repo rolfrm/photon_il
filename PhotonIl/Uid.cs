@@ -23,13 +23,13 @@ namespace PhotonIl
 		[ProtoBuf.ProtoMember(1)]
 		public readonly int Id;
 
+		[ProtoBuf.ProtoMember(2)]
 		public int AssemblyId; 
 
 		public static Dict<int,int> LoadAssemblyTranslation = new Dict<int, int> ();
 
 		[ProtoBuf.ProtoAfterDeserializationAttribute]
 		public void WasDeserialized(){
-			
 			AssemblyId = LoadAssemblyTranslation.Get(AssemblyId);
 		}
 

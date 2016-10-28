@@ -345,6 +345,9 @@ namespace PhotonIl
 							Interact.Emit (OpCodes.Ldc_I4, (int)Convert.ChangeType (ConstantValue.Get (expr), typeof(int)));
 						//else if (constantType == U64Type)
 						//	Interact.Emit (OpCodes.Ldc_I8, (long)Convert.ChangeType (ConstantValue.Get (expr), typeof(long)));
+						else if (constantType == StringType) {
+							Interact.Emit (OpCodes.Ldstr, (string)Convert.ChangeType (ConstantValue.Get (expr), typeof(string)));
+						}	
 						else
 							throw new Exception ("Cannot load type");
 						return constantType;
@@ -833,10 +836,7 @@ namespace PhotonIl
 			using (var str = new GZipStream(File.OpenWrite (filepath), CompressionMode.Compress,false)) {
 				var bytes = builder == null ? new byte[0] : File.ReadAllBytes (AssemblyName ());
 				Serializer.SerializeWithLengthPrefix (str, bytes, PrefixStyle.Base128,1);
-				var assemblyidlut = new Dict<int, string> ();
-				foreach (var item in loadedAssemblyId)
-					assemblyidlut.Add (item.Key, item.Value.FullName);
-				Serializer.SerializeWithLengthPrefix (str, loadedAssemblyId, PrefixStyle.Base128,2);
+				Serializer.SerializeWithLengthPrefix (str, loadedBins, PrefixStyle.Base128,2);
 				int fieldIndex = 3;
 				foreach (var mod in modules) {
 					var data = mod.Value.Save ();
@@ -850,13 +850,18 @@ namespace PhotonIl
 				}
 			}
 		}
+		Dict<string, int> loadedBins = new Dict<string, int>();
 		static int assemblyStoreId = 1;
 		public void Load(string filepath){
 			
 			byte[] bytedata = null;
 			using (var str = new GZipStream(File.OpenRead (filepath), CompressionMode.Decompress,false)) {
 				bytedata = ProtoBuf.Serializer.DeserializeWithLengthPrefix<byte[]> (str, PrefixStyle.Base128,1);
-				var assemblyloadIds = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Dict<int, string>> (str, PrefixStyle.Base128,2);
+				var assemblyloadIds = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Dict<string, int>> (str, PrefixStyle.Base128,2);
+				foreach (var req in assemblyloadIds.ToArray()) {
+					if(false == loadedBins.ContainsKey(req.Key))
+						Load (req.Key);
+				}
 				// before loading this assembly, make sure the others are loaded.
 				Assembly asm = null;
 				if(bytedata.Length > 0){
@@ -870,14 +875,13 @@ namespace PhotonIl
 				}
 
 
-				Dict<int,int> translation = new Dict<int, int> ();
-				translation [0] = assemblyStoreId++;
-				foreach (var kv in assemblyloadIds) {
-					var id = kv.Key;
-					var val = kv.Value;
-					translation [id] = loadedAssemblyId.First (x => x.Value.FullName == val).Key;
-				}
+				loadedBins [filepath] = assemblyStoreId++;
 
+				Dict<int,int> translation = new Dict<int, int> ();
+				foreach (var item in assemblyloadIds) {
+					translation [item.Value] = loadedBins [item.Key];
+				}
+				translation [0] = loadedBins [filepath];
 				Uid.LoadAssemblyTranslation = translation;
 
 				int fieldIndex = 3;

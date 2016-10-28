@@ -23,6 +23,11 @@ namespace PhotonIl
 			IL.Emit (code);
 		}
 
+		public static void Emit(OpCode code, string str){
+			if(IL != null)
+				IL.Emit (code, str);
+		}
+
 		public static void Emit(OpCode code, Type type){
 			if(IL != null)
 			IL.Emit (code, type);

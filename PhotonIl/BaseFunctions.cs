@@ -24,7 +24,8 @@ namespace PhotonIl
 
 		public void Load(IlGen gen){
 			this.gen = gen;
-
+			if (gen.IsBare)
+				return;
 			Cast = gen.Sym ("Cast");
 			PrintAny = gen.Sym ("print");
 			If = gen.Sym ("if");
