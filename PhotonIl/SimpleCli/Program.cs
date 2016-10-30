@@ -28,8 +28,8 @@ namespace SimpleCli
 
 			Console.WriteLine ("Welcome to Photon for .NET.");
 
-			gen = new IlGen (false);
-			/*gen.LoadReference ("baseworkspace.bin");
+			gen = new IlGen (true);
+			gen.LoadReference ("baseworkspace.bin");
 			File.Delete ("SimpleCli.bin");
 			if (!File.Exists ("SimpleCli.bin")) {
 				var gen2 = new IlGen (true);
@@ -39,8 +39,7 @@ namespace SimpleCli
 				gen2.AddFunctionInvocation(typeof(MainClass), nameof(load));
 				gen2.Save ("SimpleCli.bin");
 			}
-			gen.LoadReference ("SimpleCli.bin");*/
-
+			gen.LoadReference ("SimpleCli.bin");
 
 			var cb = new CodeBuilder (gen);
 			cb.PushArgument ();
@@ -62,8 +61,10 @@ namespace SimpleCli
 						cb.SelectedIndex += direction;
 					
 				} else if (keyinfo.Key == ConsoleKey.Enter) {
-					if (mod == ConsoleModifiers.Alt)
+					if (cb.GetOptions().Length == 0) {
 						cb.CreateSub ();
+						cb.Enter ();
+					}
 					if (!gen.SubExpressions.Contains (cb.CurrentExpression)) {
 						cb.SelectCurrentOption ();
 						if (gen.SubExpressions.Contains (cb.CurrentExpression))

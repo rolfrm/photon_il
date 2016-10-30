@@ -258,7 +258,7 @@ namespace PhotonIl
 			var args = gen.FunctionArguments.Get (Function).ToArray();
 			Uid ret = gen.GenExpression (body, args);
 			gen.FunctionReturnType [Function] = ret;
-			if (ret != gen.VoidType) {
+			/*if (ret != gen.VoidType) {
 				var fcn = gen.DefineFunction ("run", gen.VoidType);
 				var body2 = gen.Sub (gen.F.PrintAny, body);
 				gen.DefineFcnBody (fcn, body2);
@@ -268,7 +268,11 @@ namespace PhotonIl
 			} else {
 				var m = gen.GenerateIL (Function);
 				m.Invoke (null, null);
-			}
+			}*/
+			var m = gen.GenerateIL (Function);
+			var result = m.Invoke (null, null);
+			if(m.ReturnType != typeof(void))
+				Console.WriteLine ("{0}", result);
 		}
 
 		public string StringOf(Uid uid){

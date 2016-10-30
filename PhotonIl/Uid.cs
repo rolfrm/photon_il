@@ -63,7 +63,7 @@ namespace PhotonIl
 
 		public override string ToString ()
 		{
-			return string.Format ("[Uid {0}]", Id);
+			return string.Format ("[Uid {1}.{0}]", Id, AssemblyId);
 		}
 	}
 }

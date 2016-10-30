@@ -86,7 +86,7 @@ namespace PhotonIl
 		string AssemblyName () => $"{asmId}.dll";
 
 		HashSet<Guid> loadedAssemblies = new HashSet<Guid>();
-		Dict<int,Assembly> loadedAssemblyId = new Dict<int, Assembly>();
+		//Dict<int,Assembly> loadedAssemblyId = new Dict<int, Assembly>();
 
 		public Uid Add { get { return SymbolNames ["+"]; } }
 		public Uid Subtract { get { return SymbolNames ["-"]; } }
@@ -133,8 +133,12 @@ namespace PhotonIl
 
 			[ProtoMember(10)]
 			public Dict<Uid, string> ArgumentName;
+
 			[ProtoMember(11)]
 			public Dict<Uid, Uid> ArgumentType;
+
+			[ProtoMember(12)]
+			public Dict<Uid, Tuple<string, string>> MacroSpecs;
 
 
 		};
@@ -185,6 +189,11 @@ namespace PhotonIl
 			if(savable.ArgumentType != null)
 				foreach (var x in savable.ArgumentType)
 					ArgumentType.Add(x.Key, x.Value);
+			if(savable.MacroSpecs != null)
+				foreach(var x in savable.MacroSpecs){
+					Type basetype = (asm == null ? Type.GetType (x.Value.Item1) : (asm.GetType (x.Value.Item1) ?? Type.GetType (x.Value.Item1)));
+					macroSpecs[x.Key] = basetype.GetMethod (x.Value.Item2, BindingFlags.Static | BindingFlags.Public);
+					}
 			
 		}
 		public object Save(){
@@ -200,7 +209,8 @@ namespace PhotonIl
 				FunctionReturnType = this.FunctionReturnType.LocalOnly(),
 				FunctionArguments = this.FunctionArguments.LocalOnly(),
 				ArgumentName = this.ArgumentName.LocalOnly(),
-				ArgumentType = this.ArgumentType.LocalOnly()
+				ArgumentType = this.ArgumentType.LocalOnly(),
+				MacroSpecs = this.macroSpecs.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name))
 			};
 
 		}
@@ -465,7 +475,7 @@ namespace PhotonIl
 
 				Uid type = CompileSubExpression (subexprs [i]);
 				if (type != ArgumentType.Get (args [i - 1]))
-					throw new CompilerError (subexprs [i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, args [i - 1], type);
+					throw new CompilerError (subexprs [i], "Invalid type of arg {0}. Expected {1}, got {2}.", i - 1, ArgumentType.Get (args [i - 1]), type);
 				stlocs [i - 1] = Interact.DeclareLocal (GetCSType (type));
 				Interact.Emit (OpCodes.Stloc, stlocs [i - 1]);
 			}
@@ -797,11 +807,18 @@ namespace PhotonIl
 				MacroNames.Add (id, macroName);
 		}
 
-		public void AddMacro (Uid id, MethodInfo m)
+		public void AddMacro (Uid id, MethodInfo m, string name = null)
 		{
+			name = name ?? SymName(id) ?? m.Name;
 			Assert.IsTrue (m.IsStatic && m.IsPublic);
-			userMacros.Add (id, expr => (Uid)m.Invoke (null, null));
-			MacroNames.Add (id, m.Name);
+			Macros.Add(id, m);
+			MacroNames.Add (id, name);
+		}
+
+		public void AddMacro(Uid macro, Type declaringType, string methodName){
+			var m = declaringType.GetMethod (methodName, BindingFlags.Static | BindingFlags.Public);
+			Assert.IsTrue (m != null);
+			AddMacro (macro, m);
 		}
 
 
@@ -923,7 +940,9 @@ namespace PhotonIl
 			var ret = method.ReturnType;
 			var pret = getPhotonType (ret);
 			this.FunctionReturnType.Add (Sym (FunctionName), pret);
-			this.FunctionArguments.Add (Sym (FunctionName), method.GetParameters ().Select (x => this.DefineArgument (x.Name, getPhotonType (x.ParameterType))));
+			var args = method.GetParameters ().Select (x => this.DefineArgument (x.Name, getPhotonType (x.ParameterType)));
+			var arg_types = args.Select (x => ArgumentType.Get(x)).ToArray ();
+			this.FunctionArguments.Add (Sym (FunctionName), args);
 		}
 
 	}

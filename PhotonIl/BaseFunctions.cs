@@ -30,10 +30,10 @@ namespace PhotonIl
 			PrintAny = gen.Sym ("print");
 			If = gen.Sym ("if");
 
-			gen.AddMacro (Cast, cast);
-			gen.AddMacro (If, ifmacro);
-			gen.AddMacro (PrintAny, Printany);
-			gen.AddMacro (gen.Sym ("defun"), defunmacro);
+			gen.AddMacro (Cast, this.GetType(), nameof(cast));
+			gen.AddMacro (If, this.GetType(), nameof(ifmacro));
+			gen.AddMacro (PrintAny, this.GetType(), nameof(Printany));
+			gen.AddMacro (gen.Sym ("defun"), this.GetType(), nameof(defunmacro));
 			gen.AddMacroSpec (gen.Sym ("defun"), this.GetType(), nameof(defunMacroCompletions));
 		}
 
