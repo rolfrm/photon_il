@@ -122,9 +122,31 @@ namespace PhotonIl
 			var spec = gen.GetMacroSpec (FirstExpression);
 			if (spec != null) {
 				Interact.Load (gen, null);
+				Interact.CurrentArgs.Clear ();
+
+				/*
+				var exprs = gen.SubExpressions.Get (SelectedExpression);
+
+				Uid[] args = null;
+
+				if (SelectedIndex > 2 && this.ArgumentLists.Contains (exprs [2])) {
+					args = gen.SubExpressions.Get (exprs [2]).ToArray ();
+				} else {
+					args = new Uid[0];
+				}
+
+				Interact.CurrentArgs.AddRange (args);*/
 				var result = spec (SelectedExpression, SelectedIndex, str);
 				if (result != Uid.Default) {
 					yield return result;
+					yield break;
+				}
+			}
+
+			if (SelectedIndex > 0) {
+				var args = gen.FunctionArguments.Get (FirstExpression);
+				if (args.Count > 0 && SelectedIndex < args.Count + 1) {
+					yield return gen.ArgumentType.Get (args [SelectedIndex - 1]);
 					yield break;
 				}
 			}
@@ -258,17 +280,6 @@ namespace PhotonIl
 			var args = gen.FunctionArguments.Get (Function).ToArray();
 			Uid ret = gen.GenExpression (body, args);
 			gen.FunctionReturnType [Function] = ret;
-			/*if (ret != gen.VoidType) {
-				var fcn = gen.DefineFunction ("run", gen.VoidType);
-				var body2 = gen.Sub (gen.F.PrintAny, body);
-				gen.DefineFcnBody (fcn, body2);
-				var m = gen.GenerateIL (fcn);
-				m.Invoke (null, null);
-				gen.SubExpressions.Remove (body2);
-			} else {
-				var m = gen.GenerateIL (Function);
-				m.Invoke (null, null);
-			}*/
 			var m = gen.GenerateIL (Function);
 			var result = m.Invoke (null, null);
 			if(m.ReturnType != typeof(void))
@@ -303,12 +314,8 @@ namespace PhotonIl
 		}
 
 		public int OptionIndex {
-			get {
-				return OptionIndexes.Get (CurrentItem);
-			}
-			set {
-				OptionIndexes[CurrentItem] = value;
-			}
+			get { return OptionIndexes.Get (CurrentItem); }
+			set { OptionIndexes[CurrentItem] = value; }
 		}
 
 		public void SelectCurrentOption(){

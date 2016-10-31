@@ -34,8 +34,10 @@ namespace PhotonIl
 
 	public class MacroAttribute : Attribute{
 		public string Name;
-		public MacroAttribute(string name){
+		public string SpecName;
+		public MacroAttribute(string name, string specName = null){
 			Name = name;
+			SpecName = specName;
 		}
 	}
 
@@ -282,6 +284,8 @@ namespace PhotonIl
 				var id = Sym (attr.Name);
 				Macros.Add (id, m);
 				MacroNames.Add (id, attr.Name);
+				if (attr.SpecName != null)
+					AddMacroSpec (id, this.GetType (), attr.SpecName);
 			}
 
 			GetModule<BaseFunctions> ();
@@ -715,22 +719,42 @@ namespace PhotonIl
 			return type;
 		}
 
-		[Macro("+")]
+		[Macro("+", nameof(genAddSpec))]
 		public static Uid genAdd(Uid expr){
 			return Interact.Current.genbase (OpCodes.Add, expr);
 		}
 
-		[Macro("-")]
+		public static Uid genAddSpec(Uid expr, int index, string suggestion){
+			var exprs = Interact.Current.SubExpressions.Get (expr);;
+			if (index == 0)
+				return exprs [index];
+			else {
+				var checkexpr = exprs.Skip(1).FirstOrDefault(x => x != Uid.Default);
+				if (checkexpr == Uid.Default)
+					return checkexpr;
+				try{
+					
+					Uid ret = Interact.Current.GenExpression (checkexpr, Interact.CurrentArgs.ToArray() );
+					return ret;
+				}catch{
+
+				}
+			}
+			
+			return Uid.Default;
+		}
+
+		[Macro("-", nameof(genAddSpec))]
 		public static Uid genSub(Uid expr){
 			return Interact.Current.genbase (OpCodes.Sub, expr);
 		}
 
-		[Macro("*")]
+		[Macro("*", nameof(genAddSpec))]
 		public static Uid genMul(Uid expr){
 			return Interact.Current.genbase (OpCodes.Mul, expr);
 		}
 
-		[Macro("/")]
+		[Macro("/", nameof(genAddSpec))]
 		public static Uid genDiv(Uid expr){
 			return Interact.Current.genbase (OpCodes.Div, expr);
 		}

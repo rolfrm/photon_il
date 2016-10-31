@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Reflection.Emit;
 using System.Reflection;
+using System.Collections.Generic;
 
 namespace PhotonIl
 {
 	public static class Interact
 	{
+		public static List<Uid> CurrentArgs = new List<Uid> ();
 		public static IlGen Current;
 		static ILGenerator IL;
 		public static void Load(IlGen gen, ILGenerator il){
