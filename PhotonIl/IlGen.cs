@@ -357,6 +357,7 @@ namespace PhotonIl
 							Interact.Emit (OpCodes.Ldc_R8, (double)Convert.ChangeType (ConstantValue.Get (expr), typeof(double)));
 						else if (constantType == I32Type || constantType == U32Type)
 							Interact.Emit (OpCodes.Ldc_I4, (int)Convert.ChangeType (ConstantValue.Get (expr), typeof(int)));
+						// TODO implement U8,U16,...
 						//else if (constantType == U64Type)
 						//	Interact.Emit (OpCodes.Ldc_I8, (long)Convert.ChangeType (ConstantValue.Get (expr), typeof(long)));
 						else if (constantType == StringType) {
@@ -396,11 +397,17 @@ namespace PhotonIl
 			}
 			var subexprs = SubExpressions.Get (expr);
 			if (subexprs.Count == 0)
-				throw new CompilerError (expr, "Invalid expression");
+					throw new CompilerError (expr, "Invalid expression");
 			{
 				var gen = Macros.Get (subexprs [0]);
-				if (gen != null)
-					return (Uid)gen.Invoke(null, new object[]{ expr});
+				if (gen != null) {
+					try{
+					return (Uid)gen.Invoke (null, new object[]{ expr });
+					}catch(TargetInvocationException te){
+						throw te.InnerException;
+					}
+
+				}
 			}
 
 			{	
@@ -725,6 +732,8 @@ namespace PhotonIl
 		}
 
 		public static Uid genAddSpec(Uid expr, int index, string suggestion){
+			if (string.IsNullOrEmpty (suggestion))
+				return Uid.Default;
 			var exprs = Interact.Current.SubExpressions.Get (expr);;
 			if (index == 0)
 				return exprs [index];

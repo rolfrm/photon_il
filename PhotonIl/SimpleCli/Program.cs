@@ -20,9 +20,12 @@ namespace SimpleCli
 		public static void load(string filepath){
 			gen.Load (filepath);
 		}
+
 		static IlGen gen;
+
 		public static void Main (string[] args)
 		{
+			Uid errorExpr = Uid.Default;
 			Console.CursorVisible = true;
 			Console.TreatControlCAsInput = true;
 
@@ -98,7 +101,12 @@ namespace SimpleCli
 							Console.WriteLine ("");
 						} catch (Exception e) {
 							Console.WriteLine ("Error: {0}", e.Message);
-							continue;
+						if (e is CompilerError) {
+							errorExpr = (e as CompilerError).Expr;
+						} else {
+							errorExpr = Uid.Default;
+						}
+
 						}
 
 
@@ -130,7 +138,19 @@ namespace SimpleCli
 						index = Console.CursorLeft;
 						continue;
 					}
-					Console.Write (cb.StringOf(subs [i]));
+
+					if (subs [i] == errorExpr) {
+
+						Console.BackgroundColor = ConsoleColor.DarkRed;
+						if (subs [i] == Uid.Default)
+							Console.Write (" ");
+						else
+							Console.Write (cb.StringOf (subs [i]));
+						Console.ResetColor ();
+
+					} else {
+						Console.Write (cb.StringOf (subs [i]));
+					}
 				}
 
 				Console.BackgroundColor = ConsoleColor.DarkGray;

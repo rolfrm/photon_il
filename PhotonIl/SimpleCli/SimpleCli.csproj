@@ -11,7 +11,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Run|AnyCPU' ">
     <Optimize>false</Optimize>
-    <OutputPath>bin\Run</OutputPath>
+    <OutputPath>..\bin\Run</OutputPath>
     <WarningLevel>4</WarningLevel>
     <LangVersion>6</LangVersion>
     <DebugSymbols>true</DebugSymbols>

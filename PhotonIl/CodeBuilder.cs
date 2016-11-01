@@ -143,6 +143,9 @@ namespace PhotonIl
 				}
 			}
 
+			if (string.IsNullOrEmpty (str))
+				yield break;
+
 			if (SelectedIndex > 0) {
 				var args = gen.FunctionArguments.Get (FirstExpression);
 				if (args.Count > 0 && SelectedIndex < args.Count + 1) {
@@ -150,10 +153,6 @@ namespace PhotonIl
 					yield break;
 				}
 			}
-
-			if (string.IsNullOrEmpty (str))
-				yield break;
-
 
 
 			float rf;
@@ -215,10 +214,18 @@ namespace PhotonIl
 			}
 
 			{
-				Type t = gen.generatedStructs.Get (option);
-				if (t != default(Type)) 
-					option = gen.DefineConstant (option, Convert.ChangeType (CurrentString, t));
-				
+				if (CurrentString == null) {
+					option = Uid.Default;
+				} else if(gen.generatedStructs.ContainsKey(option)) {
+					Type t = gen.generatedStructs.Get (option);
+					try{
+						var value = Convert.ChangeType (CurrentString, t);
+						if (t != default(Type))
+							option = gen.DefineConstant (option, value);
+					}catch{
+						option = Uid.Default;
+					}
+				}
 			}
 
 			sexp [SelectedIndex] = option;	
@@ -297,9 +304,9 @@ namespace PhotonIl
 				return gen.ConstantValue [uid]?.ToString () ?? "";
 			if (gen.ArgumentName.ContainsKey(uid))
 				return gen.ArgumentName [uid];
-			if (gen.FunctionName.ContainsKey(uid))
-				return gen.FunctionName [uid];
-			if (gen.MacroNames.ContainsKey (uid))
+			if (gen.FunctionName.ContainsKey (uid)) {
+				return string.Format("{0} {1}", gen.FunctionName [uid], gen.FunctionArguments.Get(uid).Count);
+			}if (gen.MacroNames.ContainsKey (uid))
 				return gen.MacroNames [uid];
 			if (gen.type_name.ContainsKey (uid))
 				return gen.type_name.Get (uid);
@@ -315,14 +322,23 @@ namespace PhotonIl
 
 		public int OptionIndex {
 			get { return OptionIndexes.Get (CurrentItem); }
-			set { OptionIndexes[CurrentItem] = value; }
+			set { 
+				var optlen = GetOptions ().Length;
+				if (optlen == 0 || value >= optlen || value < 0) {
+					OptionIndexes.Remove (CurrentItem);
+				} else {	
+					OptionIndexes [CurrentItem] = value; 
+				}
+			}
 		}
 
 		public void SelectCurrentOption(){
 			var options = GetOptions ();
 			var idx = OptionIndex;
-			if (idx < 0 || idx >= options.Length)
+
+			if (idx < 0 || idx >= options.Length || options[idx] == Uid.Default)
 				return;
+			
 			SelectOption (options [idx]);
 		}
 
