@@ -159,7 +159,7 @@ namespace PhotonIl
 				generatedStructs [x.Key] = asm == null ? Type.GetType(x.Value) :  asm.GetType (x.Value);
 			if (savable.FuncNames != null)
 				foreach (var x in savable.FuncNames) {
-					Type basetype = (asm == null ? Type.GetType (x.Value.Item1) : (asm.GetType (x.Value.Item1) ?? Type.GetType (x.Value.Item1)));
+                    Type basetype = asm?.GetType(x.Value.Item1.Split(',')[0]) ?? Type.GetType(x.Value.Item1);
 					FunctionInvocation [x.Key] = basetype.GetMethod (x.Value.Item2, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 				}
 			if (savable.FunctionNames != null)
@@ -346,6 +346,9 @@ namespace PhotonIl
 
 		public Uid CompileSubExpression (Uid expr)
 		{
+            if (compileIntercept != null)
+                if (!compileIntercept(expr))
+                    return VoidType;
 			{
 				var constantType = ConstantType.Get (expr);
 				if (constantType != Uid.Default) {
@@ -515,57 +518,66 @@ namespace PhotonIl
 			return modBuilder;
 		}
 
-		public Uid GenExpression (Uid expr, params Uid[] arguments)
-		{
-			Interact.Load (this, null);
-			Uid rt;
-			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
-					
-				short paramIndex = 0;
-				foreach (var arg in arguments) {
-					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
-					paramIndex += 1;
-				}
-				rt = CompileSubExpression (expr);
-			}
-			return rt;
+        public Uid GenExpression(Uid expr, params Uid[] arguments)
+        {
+            using (Interact.Push(this, null))
+            {
+                Uid rt;
+                using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
+                {
+
+                    short paramIndex = 0;
+                    foreach (var arg in arguments)
+                    {
+                        localSymbols.Value.Add(arg, new LocalSymData { ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
+                        paramIndex += 1;
+                    }
+                    rt = CompileSubExpression(expr);
+                }
+                return rt;
+            }
 		}
 		int typeid = 0;
-		public MethodInfo GenerateIL (Uid expr)
-		{
-			var module = getDynamicModule ();
-			var tb = module.DefineType ($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
+        public MethodInfo GenerateIL(Uid expr)
+        {
+            var module = getDynamicModule();
+            var tb = module.DefineType($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
 
-			var name = FunctionName.Get (expr) ?? "_";
-			var body = functionBody.Get (expr);
-			var ftype = expr;
-			var rtype = FunctionReturnType.Get (ftype);
-			var fargCs = FunctionArguments.Get (ftype).Select (arg => GetCSType (ArgumentType.Get (arg))).ToArray ();
-			MethodBuilder fn = tb.DefineMethod (name, MethodAttributes.Static | MethodAttributes.Public,
-				                   GetCSType (rtype), fargCs);
-			FunctionInvocation [expr] = fn;
-			var ilgen = fn.GetILGenerator ();
-			Interact.Load (this, ilgen);
-			Uid rt;
-			using (localSymbols.WithValue (new Dict<Uid, LocalSymData> ())) {
-				var fargs = FunctionArguments.Get (expr);
-				short paramIndex = 0;
-				foreach (var arg in fargs) {
-					var argname = ArgumentName.Get (arg) ?? ("arg_" + arg);
-					fn.DefineParameter (paramIndex + 1, ParameterAttributes.None, argname);
-					localSymbols.Value.Add (arg, new LocalSymData{ ArgIndex = paramIndex, TypeId = ArgumentType.Get (arg) });
-					paramIndex += 1;
-				}
-				rt = CompileSubExpression (body);
-			}
-			if (rtype != VoidType && rt != rtype)
-				throw new Exception ("Return types does not match");
-			if (rtype == VoidType && rt != VoidType) {
-				ilgen.Emit (OpCodes.Pop);
-			} 
-			ilgen.Emit (OpCodes.Ret);
-			Type t = tb.CreateType ();
-			return FunctionInvocation [expr] = t.GetMethod (fn.Name);   
+            var name = FunctionName.Get(expr) ?? "_";
+            var body = functionBody.Get(expr);
+            var ftype = expr;
+            var rtype = FunctionReturnType.Get(ftype);
+            var fargCs = FunctionArguments.Get(ftype).Select(arg => GetCSType(ArgumentType.Get(arg))).ToArray();
+            MethodBuilder fn = tb.DefineMethod(name, MethodAttributes.Static | MethodAttributes.Public,
+                                   GetCSType(rtype), fargCs);
+            FunctionInvocation[expr] = fn;
+            var ilgen = fn.GetILGenerator();
+            using (Interact.Push(this, ilgen))
+            {
+                Uid rt;
+                using (localSymbols.WithValue(new Dict<Uid, LocalSymData>()))
+                {
+                    var fargs = FunctionArguments.Get(expr);
+                    short paramIndex = 0;
+                    foreach (var arg in fargs)
+                    {
+                        var argname = ArgumentName.Get(arg) ?? ("arg_" + arg);
+                        fn.DefineParameter(paramIndex + 1, ParameterAttributes.None, argname);
+                        localSymbols.Value.Add(arg, new LocalSymData { ArgIndex = paramIndex, TypeId = ArgumentType.Get(arg) });
+                        paramIndex += 1;
+                    }
+                    rt = CompileSubExpression(body);
+                }
+                if (rtype != VoidType && rt != rtype)
+                    throw new Exception("Return types does not match");
+                if (rtype == VoidType && rt != VoidType)
+                {
+                    ilgen.Emit(OpCodes.Pop);
+                }
+                ilgen.Emit(OpCodes.Ret);
+                Type t = tb.CreateType();
+                return FunctionInvocation[expr] = t.GetMethod(fn.Name);
+            }
 		}
 
 		public delegate Uid SubExpressionDelegate (params Uid[] uids);
@@ -866,6 +878,39 @@ namespace PhotonIl
 			macroSpecs.Add (macro, func);
 		}
 
+        event Func<Uid, bool> compileIntercept;
+
+        public Uid InvokeMacroSpec(Uid baseexpr, Uid expr, int index, string str)
+        {
+            var sub = SubExpressions.Get(expr);
+            if ( 0 == sub.Count || false == macroSpecs.ContainsKey(sub[0]))
+                return Uid.Default;
+            var spec = macroSpecs.Get(sub[0]);
+            Uid result = Uid.Default;
+            Func<Uid, bool> checkf = x =>
+            {
+                if (x == expr)
+                {
+                    try
+                    {
+                        result = (Uid)spec.Invoke(null, new object[] { expr, index, str });
+                    }
+                    catch { }
+                    return false;
+                }
+                return true;
+            };
+            compileIntercept += checkf;
+            try
+            {
+                GenExpression(baseexpr);
+            }
+            catch { }
+
+            compileIntercept -= checkf;
+            return result;
+        }
+
 		public MacroSpecDelegate GetMacroSpec (Uid macro)
 		{
 			if (macroSpecs.Get (macro) == null)
@@ -923,7 +968,7 @@ namespace PhotonIl
 				// before loading this assembly, make sure the others are loaded.
 				Assembly asm = null;
 				if(bytedata.Length > 0){
-					var rasm = Assembly.ReflectionOnlyLoad (bytedata);
+					var rasm = Assembly.Load (bytedata);
 					var guid = Guid.Parse (rasm.GetCustomAttribute<GuidAttribute> ().Value);
 					var asms = AppDomain.CurrentDomain.GetAssemblies ();
 					asm = asms.FirstOrDefault (a => a.FullName == rasm.FullName);

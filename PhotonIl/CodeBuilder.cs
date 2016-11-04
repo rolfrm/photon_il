@@ -121,22 +121,7 @@ namespace PhotonIl
 
 			var spec = gen.GetMacroSpec (FirstExpression);
 			if (spec != null) {
-				Interact.Load (gen, null);
-				Interact.CurrentArgs.Clear ();
-
-				/*
-				var exprs = gen.SubExpressions.Get (SelectedExpression);
-
-				Uid[] args = null;
-
-				if (SelectedIndex > 2 && this.ArgumentLists.Contains (exprs [2])) {
-					args = gen.SubExpressions.Get (exprs [2]).ToArray ();
-				} else {
-					args = new Uid[0];
-				}
-
-				Interact.CurrentArgs.AddRange (args);*/
-				var result = spec (SelectedExpression, SelectedIndex, str);
+                var result = gen.InvokeMacroSpec(gen.GetFunctionBody(Function), SelectedExpression, SelectedIndex, str);
 				if (result != Uid.Default) {
 					yield return result;
 					yield break;
@@ -292,6 +277,19 @@ namespace PhotonIl
 			if(m.ReturnType != typeof(void))
 				Console.WriteLine ("{0}", result);
 		}
+
+        public CompilerError TryCompile()
+        {
+            var body = gen.GetFunctionBody(Function);
+            var args = gen.FunctionArguments.Get(Function).ToArray();
+            try {
+                Uid ret = gen.GenExpression(body, args);
+            }catch(CompilerError error)
+            {
+                return error;
+            }
+            return null;
+        }
 
 		public string StringOf(Uid uid){
 			if (uid == Uid.Default)

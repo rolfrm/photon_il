@@ -136,7 +136,9 @@ namespace PhotonIl
 			}
 
 			Uid ret = Interact.Current.GenExpression (sub[3], arglist.ToArray());
-			var fname = (string)Interact.Current.ConstantValue.Get(sub [1]);
+            if(Interact.IsDryRun)
+                return Interact.Current.VoidType;
+            var fname = (string)Interact.Current.ConstantValue.Get(sub [1]);
 			var fun = Interact.Current.DefineFunction (fname, ret, arglist.ToArray());
 			Interact.Current.DefineFcnBody (fun, sub [3]);
 			var method = Interact.Current.GenerateIL (fun);

@@ -1,4 +1,4 @@
-﻿		using System;
+﻿using System;
 using System.IO;
 using PhotonIl;
 using System.Linq;
@@ -54,7 +54,7 @@ namespace SimpleCli
 				//Console.WriteLine ("{0} {1}", mod, key);
 				//continue;
 				if ((key == ConsoleKey.LeftArrow || key == ConsoleKey.RightArrow)
-				    && keyinfo.Modifiers == ConsoleModifiers.Shift) {
+				    && mod == ConsoleModifiers.Shift) {
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
 						cb.SelectCurrentOption ();
 					int direction = key == ConsoleKey.LeftArrow ? -1 : 1;
@@ -79,9 +79,15 @@ namespace SimpleCli
 					if (cb.SelectedIndex >= 0 && cb.CurrentExpression == Uid.Default)
 						cb.SelectCurrentOption ();
 					cb.Exit ();
-					if (cb.SelectedExpression == Uid.Default) {
+                    
+                    if (cb.SelectedExpression == Uid.Default) {
 						cb = new CodeBuilder (gen);
-					}
+                    }
+                    else
+                    {
+                        errorExpr = cb.TryCompile()?.Expr ?? Uid.Default;
+                    }
+
 				} else if (key == ConsoleKey.Delete) {
 					cb.Delete ();
 				
@@ -92,25 +98,31 @@ namespace SimpleCli
 						cb.SetString (str);
 					}
 				} else if (mod == ConsoleModifiers.Control && key == ConsoleKey.C) {
-					cb.CleanSelectedExpression ();
-				}else if (mod == ConsoleModifiers.Control && key == ConsoleKey.N) {
-						Console.WriteLine ("");
-						try {
-							cb.SelectCurrentOption ();
-							cb.BuildAndRun ();
-							Console.WriteLine ("");
-						} catch (Exception e) {
-							Console.WriteLine ("Error: {0}", e.Message);
-						if (e is CompilerError) {
-							errorExpr = (e as CompilerError).Expr;
-						} else {
-							errorExpr = Uid.Default;
-						}
-
-						}
-
-
-				} else if (mod == ConsoleModifiers.Control) {
+                    cb.CleanSelectedExpression();
+                }
+                else if (mod == ConsoleModifiers.Control && key == ConsoleKey.N)
+                {
+                    Console.WriteLine("");
+                    try
+                    {
+                        cb.SelectCurrentOption();
+                        cb.BuildAndRun();
+                        Console.WriteLine("");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error: {0}", e.Message);
+                        if (e is CompilerError)
+                        {
+                            errorExpr = (e as CompilerError).Expr;
+                        }
+                        else
+                        {
+                            errorExpr = Uid.Default;
+                        }
+                    }
+                }
+                else if (mod == ConsoleModifiers.Control) {
 					if (key == ConsoleKey.Q || key == ConsoleKey.A) {
 						cb.OptionIndex += key == ConsoleKey.A ? -1 : 1;
 					}
@@ -159,12 +171,9 @@ namespace SimpleCli
 				var options = cb.GetOptions ();
 				if (options.Length > 0) {
 					var idx = cb.OptionIndex;
-						
-				    
 					var opt = Math.Abs (idx) % options.Length;
 					var option = options [opt];
 					Console.Write (cb.StringOf(option));
-
 				}else if(cb.CurrentExpression != Uid.Default){
 					//Console.Write (cb.StringOf(cb.CurrentExpression));
 				}

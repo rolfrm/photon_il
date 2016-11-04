@@ -8,13 +8,17 @@ namespace PhotonIl
 	public static class Interact
 	{
 		public static List<Uid> CurrentArgs = new List<Uid> ();
-		public static IlGen Current;
-		static ILGenerator IL;
-		public static void Load(IlGen gen, ILGenerator il){
-			Current = gen;
-			IL = il;
-		}
+		public static IlGen Current { get { return data.Value.Item1; } }
+		static ILGenerator IL { get { return data.Value.Item2; } }
 
+        public static bool IsDryRun { get { return IL == null; } }
+
+        static StackLocal<Tuple<IlGen, ILGenerator>> data = new StackLocal<Tuple<IlGen, ILGenerator>>(Tuple.Create<IlGen, ILGenerator>(null, null));
+
+		public static IDisposable Push(IlGen gen, ILGenerator il){
+            return data.WithValue(Tuple.Create(gen, il));
+		}
+        
 		public static Uid CallOn(Uid expr)
 		{
 			return Current.CompileSubExpression (expr);

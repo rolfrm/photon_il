@@ -179,30 +179,33 @@ namespace PhotonIl
 			Assert.AreEqual (result, (uint)(5 + 100));
 		}
 
-		static public void Test7(){
-			// swap macro written in photon.
-			var gen = new IlGen();
-			var sub = gen.Sub;
-			Uid arg;
-			var f = gen.DefineFunction ("test7", gen.A.ElemToArrayType(gen.UidType), arg = gen.Arg("X",gen.UidType));
+        static public void Test7() {
+            // swap macro written in photon.
+            var gen = new IlGen();
+            var sub = gen.Sub;
+            Uid arg;
+            var f = gen.DefineFunction("test7", gen.A.ElemToArrayType(gen.UidType), arg = gen.Arg("X", gen.UidType));
 
-			Uid arraysym =gen.Sym ("array"), lensym =gen.Sym ("length"), tmpsym =gen.Sym ("tmp");
-			gen.DefineFcnBody (f, 
-				sub (gen.Progn
-					, sub (gen.Let, arraysym, sub (gen.A.GetSubExpressions, arg))
-					, sub (gen.Let, lensym, sub (gen.F.Cast, gen.I32Type, sub (gen.A.ArrayCount, arraysym))) 
-					, sub (gen.Let, tmpsym, sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1))))
-					, sub (gen.Set
-					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (1)))
-					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2))))
-					, sub (gen.Set
-					   , sub (gen.A.ArrayAccess, arraysym, sub (gen.Subtract, lensym, gen.F.Const (2)))
-						, tmpsym)
-					, arraysym));
-			var m = gen.GenerateIL(f);
-			var subexpr = (Uid[])m.Invoke (null, new object[]{sub (f, gen.U16Type, gen.U32Type)});
-			Assert.AreEqual (subexpr [1], gen.U32Type);
-			Assert.AreEqual (subexpr [2], gen.U16Type);
+            Uid arraysym = gen.Sym("array"), lensym = gen.Sym("length"), tmpsym = gen.Sym("tmp");
+            gen.DefineFcnBody(f,
+                sub(gen.Progn
+                    , sub(gen.Let, arraysym, sub(gen.A.GetSubExpressions, arg))
+                    , sub(gen.Let, lensym, sub(gen.F.Cast, gen.I32Type, sub(gen.A.ArrayCount, arraysym)))
+                    , sub(gen.Let, tmpsym, sub(gen.A.ArrayAccess, arraysym, sub(gen.Subtract, lensym, gen.F.Const(1))))
+                    , sub(gen.Set
+                       , sub(gen.A.ArrayAccess, arraysym, sub(gen.Subtract, lensym, gen.F.Const(1)))
+                       , sub(gen.A.ArrayAccess, arraysym, sub(gen.Subtract, lensym, gen.F.Const(2))))
+                    , sub(gen.Set
+                       , sub(gen.A.ArrayAccess, arraysym, sub(gen.Subtract, lensym, gen.F.Const(2)))
+                        , tmpsym)
+                    , arraysym));
+            var m = gen.GenerateIL(f);
+            using (Interact.Push(gen, null))
+            {
+                var subexpr = (Uid[])m.Invoke(null, new object[] { sub(f, gen.U16Type, gen.U32Type) });
+                Assert.AreEqual(subexpr[1], gen.U32Type);
+                Assert.AreEqual(subexpr[2], gen.U16Type);
+            }
 		}
 
 		public static int PrintInt(int x){
@@ -303,13 +306,24 @@ namespace PhotonIl
 			cb.PushArgument ("+");
 			cb.PushArgument ("X");
 			cb.PushArgument ("Y");
-			cb.Exit ();
-			cb.BuildAndRun ();
+            cb.PushArgument();
+            cb.CreateSub ();
+            cb.Enter ();
+            cb.PushArgument ("+");
+            Assert.IsNotNull(cb.TryCompile());
+            cb.PushArgument ("X");
+            var prev = cb.CurrentExpression;
+            Assert.IsNull(cb.TryCompile());
+            var post = cb.CurrentExpression;
+            cb.PushArgument ("X");
+            cb.Exit ();
+            cb.Exit ();
+            cb.BuildAndRun ();
 			var fcn = gen.FunctionName.First (x => x.Value == "testfcn").Key;
 			MethodInfo m = gen.FunctionInvocation.Get (fcn);
 			Assert.IsTrue (m != null);
 			object result = m.Invoke (null, new Object[]{ (byte)5, (byte)11 });
-			Assert.AreEqual ((byte)result, (byte)16);
+			Assert.AreEqual ((byte)result, (byte)(16 + 5 + 5));
 		}
 
 		static public void Test13(){
@@ -392,7 +406,19 @@ namespace PhotonIl
 				throw new AssertionFailedException();
 		}
 
-		public static void Fail(string message){
+        public static void IsNotNull(object value)
+        {
+            if (value == null)
+                throw new AssertionFailedException();
+        }
+
+        public static void IsNull(object value)
+        {
+            if (value != null)
+                throw new AssertionFailedException();
+        }
+
+        public static void Fail(string message){
 			throw new AssertionFailedException();
 		}
     }
