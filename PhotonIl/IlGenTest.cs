@@ -376,7 +376,8 @@ namespace PhotonIl
 			}
 
 		}
-		static public void Test15(){
+
+        static public void Test15(){
 			var gen = new IlGen (true);
 			gen.LoadReference ("baseworkspace.bin");
 			gen.LoadReference ("workspace2.bin");
@@ -385,7 +386,25 @@ namespace PhotonIl
 			var result = m.Invoke (null, null);
 			Assert.AreEqual (result, Math.PI + Math.PI);
 		}
-	}
+
+        static public void TestIncrementalSave()
+        {
+            var gen = new IlGen(false);
+            var sub = gen.Sub;
+            for (int i = 0; i < 5; i++)
+            {
+                System.IO.File.Delete($"baseworkspace{i}.bin");
+                var pi_test_id = gen.DefineFunction("pi_test2", gen.F64Type);
+                gen.DefineFcnBody(pi_test_id, sub(gen.Add, gen.DefineConstant(gen.F64Type, Math.PI), gen.DefineConstant(gen.F64Type, Math.PI)));
+                gen.GenerateIL(pi_test_id);
+                var m = gen.FunctionInvocation.Get(pi_test_id);
+                var result = m.Invoke(null, null);
+                gen.Save($"baseworkspace{i}.bin");
+            }
+        }
+
+
+    }
 
     public class Assert
     {

@@ -31,7 +31,7 @@ namespace PhotonIl
 				IlGenTest.Test13();
 				IlGenTest.Test14();
 				IlGenTest.Test15();
-				
+                IlGenTest.TestIncrementalSave();
 				Console.WriteLine("Passed");
 			}
 			catch(Exception e)

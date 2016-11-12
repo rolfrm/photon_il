@@ -358,7 +358,7 @@ namespace PhotonIl
 							Interact.Emit (OpCodes.Ldc_R4, (float)Convert.ChangeType (ConstantValue.Get (expr), typeof(float)));
 						else if (constantType == F64Type)
 							Interact.Emit (OpCodes.Ldc_R8, (double)Convert.ChangeType (ConstantValue.Get (expr), typeof(double)));
-						else if (constantType == I32Type || constantType == U32Type)
+						else if (constantType == I32Type || constantType == U32Type || constantType == U8Type || constantType == U16Type)
 							Interact.Emit (OpCodes.Ldc_I4, (int)Convert.ChangeType (ConstantValue.Get (expr), typeof(int)));
 						// TODO implement U8,U16,...
 						//else if (constantType == U64Type)
@@ -933,8 +933,8 @@ namespace PhotonIl
 
 		// Pack all the data needed. Most importantly, the types and methods generated. 
 		public void Save(string filepath){
-			if(builder != null)
-				builder.Save (AssemblyName ());
+            if (builder != null)
+                builder.Save(AssemblyName());
 			File.Delete (filepath);
 			using (var str = new GZipStream(File.OpenWrite (filepath), CompressionMode.Compress,false)) {
 				var bytes = builder == null ? new byte[0] : File.ReadAllBytes (AssemblyName ());
@@ -952,7 +952,8 @@ namespace PhotonIl
 					Serializer.NonGeneric.SerializeWithLengthPrefix (str, data, PrefixStyle.Base128,fieldIndex++);
 				}
 			}
-		}
+            builder = null; // Builder must not be used again due to restriction in (MS).NET
+        }
 		Dict<string, int> loadedBins = new Dict<string, int>();
 		static int assemblyStoreId = 1;
 		public void Load(string filepath){

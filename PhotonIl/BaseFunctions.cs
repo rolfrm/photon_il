@@ -119,7 +119,7 @@ namespace PhotonIl
 		public static Uid defunmacro(Uid expr){
 			var sub = Interact.Current.SubExpressions.Get (expr);
 
-			if (sub.Count != 4 && sub.Count != 3)
+			if (sub.Count != 4) // maybe also 3 if the body has not been defined.
 				throw new CompilerError (expr, "Invalid number of subexpressions for defun.");
 			
 			if (Interact.Current.ConstantType.Get(sub [1]) != Interact.Current.StringType)
