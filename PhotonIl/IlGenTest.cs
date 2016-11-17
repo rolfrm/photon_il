@@ -102,7 +102,7 @@ namespace PhotonIl
             }
         }
 
-		static public void Test4()
+		static public void FunctionWithGlobalVar()
 		{
 			var gen = new IlGen();
 			var sub = gen.Sub;
@@ -126,7 +126,7 @@ namespace PhotonIl
 			return gen.Sub (s);
 		}
 
-		static public void Test5(){
+		static public void SwapMacro(){
 			
 			var gen = new IlGen();
 			var swapid = Uid.CreateNew ();
@@ -143,7 +143,7 @@ namespace PhotonIl
 			Assert.AreEqual(blank2, 32 - 12);
 		}
 
-		static public void Test6(){
+		static public void ArrayCreation(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			var f = gen.DefineFunction ("test6", gen.U32Type);
@@ -160,7 +160,7 @@ namespace PhotonIl
 			Assert.AreEqual ((uint)result, (uint)(15));
 		}
 
-		static public void Test6_2(){
+		static public void ArrayAccess(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			var f = gen.DefineFunction ("test6_2", gen.U32Type);
@@ -179,7 +179,7 @@ namespace PhotonIl
 			Assert.AreEqual (result, (uint)(5 + 100));
 		}
 
-        static public void Test7() {
+        static public void MacroMethod() {
             // swap macro written in photon.
             var gen = new IlGen();
             var sub = gen.Sub;
@@ -213,7 +213,7 @@ namespace PhotonIl
 			return x;
 		}
 
-		static public void Test8(){
+		static public void RecursiveMethod(){
 			var gen = new IlGen();
 			var method = typeof(IlGenTest).GetMethod ("PrintInt", BindingFlags.Static | BindingFlags.Public);
 			var print = gen.DefineFunction ("printint", gen.I32Type, gen.Arg("X", gen.I32Type));
@@ -228,7 +228,7 @@ namespace PhotonIl
 			Assert.AreEqual ((int)x, 0);
 		}
 
-		static public void Test9(){
+		static public void BuildSimpleAddition(){
 			var gen = new IlGen();
 			var f = gen.DefineFunction ("CodeBuilderTest", gen.F64Type);
 			var cb = new CodeBuilder (gen, f);
@@ -266,7 +266,7 @@ namespace PhotonIl
 			Assert.AreEqual (result, 5.3 + 9.5);
 		}
 
-		static public void Test10(){
+		static public void IfWithArgReturnType(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			Uid type = gen.I32Type;
@@ -276,7 +276,7 @@ namespace PhotonIl
 			Assert.AreEqual (rt, type);
 		}
 
-		static public void Test11(){
+		static public void VoidFunctionWithCalculation(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			var fibid = gen.DefineFunction ("test", gen.VoidType);
@@ -285,7 +285,7 @@ namespace PhotonIl
 			m.Invoke (null, null);
 		}
 
-		static public void Test12(){
+		static public void TestCodeBuildWithDefun(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 			var cb = new CodeBuilder (gen);
@@ -326,7 +326,7 @@ namespace PhotonIl
 			Assert.AreEqual ((byte)result, (byte)(16 + 5 + 5));
 		}
 
-		static public void Test13(){
+		static public void TestSaveFunctionsInWorkspace(){
 			
 			{ // Part 1. generate a simple function.
 				var gen = new IlGen ();
@@ -352,7 +352,7 @@ namespace PhotonIl
 			}
 		}
 
-		static public void Test14(){
+		static public void TestLoadBaseWorkspace(){
 			System.IO.File.Delete ("baseworkspace.bin");
 			System.IO.File.Delete ("workspace2.bin");
 
@@ -377,7 +377,7 @@ namespace PhotonIl
 
 		}
 
-        static public void Test15(){
+        static public void TestLoadingWithDependencies(){
 			var gen = new IlGen (true);
 			gen.LoadReference ("baseworkspace.bin");
 			gen.LoadReference ("workspace2.bin");
