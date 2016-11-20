@@ -72,6 +72,7 @@ namespace SimpleCli
 						cb.SelectCurrentOption ();
 						if (gen.SubExpressions.Contains (cb.CurrentExpression))
 							cb.Enter ();
+						cb.PushArgument ();
 					} else {
 						cb.Enter ();
 					}
@@ -82,6 +83,7 @@ namespace SimpleCli
                     
                     if (cb.SelectedExpression == Uid.Default) {
 						cb = new CodeBuilder (gen);
+						cb.PushArgument ();
                     }
                     else
                     {

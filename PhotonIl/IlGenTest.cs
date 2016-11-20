@@ -11,7 +11,7 @@ namespace PhotonIl
 {
 	public class IlGenTest
 	{
-		static public void Test0(){
+		static public void IdentityFunctionCall(){
 			var gen = new IlGen();
 			var sub = gen.Sub;
 
@@ -23,7 +23,7 @@ namespace PhotonIl
 			Assert.AreEqual ((int)x, -5);
 		}
 
-        static public void Test1()
+        static public void StructCreateNAccess()
         {
             var gen = new IlGen();
             var sub = gen.Sub;
@@ -44,7 +44,7 @@ namespace PhotonIl
             Assert.AreEqual(blank2, 5);
         }
 
-        static public void Test2()
+        static public void StructModification()
         {
             var gen = new IlGen();
             var sub = gen.Sub;
@@ -67,7 +67,7 @@ namespace PhotonIl
             Assert.AreEqual(blank2, 5 + 13);
         }
 
-        static public void Test3()
+        static public void StructMultiMethods()
         {
             var gen = new IlGen();
             var sub = gen.Sub;

@@ -14,10 +14,10 @@ namespace PhotonIl
 		static void run_tests(){
 			try
 			{
-				IlGenTest.Test0();
-				IlGenTest.Test1();
-				IlGenTest.Test2();
-				IlGenTest.Test3();
+				IlGenTest.IdentityFunctionCall();
+				IlGenTest.StructCreateNAccess();
+				IlGenTest.StructModification();
+				IlGenTest.StructMultiMethods();
 				IlGenTest.FunctionWithGlobalVar();
 				IlGenTest.SwapMacro();
 				IlGenTest.ArrayCreation();

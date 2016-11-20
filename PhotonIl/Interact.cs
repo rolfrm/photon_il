@@ -25,6 +25,7 @@ namespace PhotonIl
 		}
 
 		public static void Emit(OpCode code){
+			
 			if(IL != null)
 			IL.Emit (code);
 		}
