@@ -113,7 +113,8 @@ namespace PhotonIl
 			Interact.Emit (OpCodes.Call, typeof(BaseFunctions).GetMethod ("PrintAny2", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static));
 			return t;
 		}
-
+		// Maps expr -> generated function symbol
+		Dict<Uid,Uid> generatedFunctions = new Dict<Uid, Uid>(); 
 		// 4 arguments: normal function declaration.
 		// 3 arguments: function forward declaration.
 		public static Uid defunmacro(Uid expr){
@@ -139,11 +140,12 @@ namespace PhotonIl
             if(Interact.IsDryRun)
                 return Interact.Current.VoidType;
             var fname = (string)Interact.Current.ConstantValue.Get(sub [1]);
-			var fun = Interact.Current.DefineFunction (fname, ret, arglist.ToArray());
+			var fun = Interact.Current.DefineFunction (Interact.Current.F.generatedFunctions.Get(expr), fname, ret, arglist.ToArray());
 			Interact.Current.DefineFcnBody (fun, sub [3]);
 			var method = Interact.Current.GenerateIL (fun);
 			if (method == null)
 				throw new CompilerError (expr, "Unable to generate method!");
+			Interact.Current.F.generatedFunctions[expr] = fun;
 			return Interact.Current.VoidType;
 		}
 

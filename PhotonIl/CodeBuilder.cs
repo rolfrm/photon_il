@@ -61,12 +61,19 @@ namespace PhotonIl
 			}
 			Function = fid;
 
-			Uid body = gen.Sub ();
+			if (gen.GetFunctionBody (Function) != Uid.Default) {
+				SelectedExpression = gen.GetFunctionBody (Function);
+				SelectedIndex = -1;
+			} else{
+				if (gen.FunctionInvocation.ContainsKey (fid))
+					throw new Exception ("Unable to edit function with no body");
+				Uid body = gen.Sub ();
 
-			gen.DefineFcnBody (fid, body);
+				gen.DefineFcnBody (fid, body);
 
-			SelectedExpression = body;
-			SelectedIndex = -1;
+				SelectedExpression = body;
+				SelectedIndex = -1;
+			}
 			this.gen = gen;
 		}
 

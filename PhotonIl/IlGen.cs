@@ -56,7 +56,7 @@ namespace PhotonIl
 		public Dict<Uid, MethodInfo> FunctionInvocation = new Dict<Uid, MethodInfo> ();
 		public Dict<Uid, string> FunctionName = new Dict<Uid, string> ();
 		public MultiDict<Uid, Uid> FunctionArguments = new MultiDict<Uid, Uid> ();
-		Dict<Uid, Uid> functionBody = new Dict<Uid, Uid> ();
+		public Dict<Uid, Uid> functionBody = new Dict<Uid, Uid> ();
 
 		public Dict<Uid, MethodInfo> Macros = new Dict<Uid, MethodInfo> ();
 		public Uid U8Type { get { return type_name.Inv("u8");}}
@@ -540,7 +540,7 @@ namespace PhotonIl
 		int typeid = 0;
         public MethodInfo GenerateIL(Uid expr)
         {
-            var module = getDynamicModule();
+			ModuleBuilder module = getDynamicModule();
             var tb = module.DefineType($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
 
             var name = FunctionName.Get(expr) ?? "_";
@@ -591,8 +591,6 @@ namespace PhotonIl
 			SubExpressions.Add (uid, uids);
 			return uid;
 		}
-
-
 
 		public Uid DefineArgument (string name, Uid type)
 		{
@@ -685,19 +683,25 @@ namespace PhotonIl
 			return GetCSType (structType).GetFields () [idx];
 		}
 
+		public Uid DefineFunction (Uid id, string name, Uid returnType, params Uid[] arguments)
+		{
+			if (id == Uid.Default)
+				id = Uid.CreateNew ();
+			FunctionReturnType[id] = returnType;
+			FunctionArguments.Remove (id);
+			FunctionArguments.Add(id, arguments);
+			FunctionName[id] = name;
+			return id;
+		}
+
 		public Uid DefineFunction (string name, Uid returnType, params Uid[] arguments)
 		{
-
-			var id = Uid.CreateNew ();
-			FunctionReturnType.Add (id, returnType);
-			FunctionArguments.Add (id, arguments);
-			FunctionName.Add (id, name);
-			return id;
+			return DefineFunction (Uid.CreateNew (), name, returnType, arguments);
 		}
 
 		public void DefineFcnBody (Uid fcn, Uid body)
 		{
-			functionBody.Add (fcn, body);
+			functionBody[fcn] = body;
 		}
 
 		public Uid Progn { get { return SymbolNames ["progn"];}}
@@ -796,13 +800,17 @@ namespace PhotonIl
 		[Macro("set")]
 		public static Uid genSet (Uid expr)
 		{
-			var gen = Interact.Current; //can blau
+			var gen = Interact.Current;
 			var exprs = gen.SubExpressions.Get (expr);
+			if (exprs.Count == 0)
+				return Uid.Default;
 			// set, accessor, value
-			gen.SetExprs.Add (exprs [1], exprs [2]);
+			gen.SetExprs[exprs [1]] = exprs.Count == 3 ? exprs [2] : Uid.Default;
 			Uid typeid2 = gen.CompileSubExpression (exprs [1]);
-			if (gen.SetExprs.ContainsKey (exprs [1]))
+			if (gen.SetExprs.ContainsKey (exprs [1])) {
+				gen.SetExprs.Remove (exprs [1]);
 				throw new CompilerError (expr, "Sub expression does not support set");
+			}
 			return typeid2;
 		}
 
@@ -811,6 +819,79 @@ namespace PhotonIl
 			public LocalBuilder Local;
 			public short ArgIndex;
 			public Uid TypeId;
+		}
+
+		public void DefineGlobal(Uid id, object value){
+
+		}
+
+		public FieldInfo DefineGlobal(string name, Type type){
+			var module = getDynamicModule ();
+			var tb = module.DefineType($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
+			var field = tb.DefineField (name, type, FieldAttributes.Static | FieldAttributes.Public);
+			tb.CreateType ();
+			return field;
+		}
+
+		Dict<Uid, FieldInfo> globals = new Dict<Uid, FieldInfo>();
+		Dict<Uid, string> globalName = new Dict<Uid, string>();
+		Dict<Uid, Uid> globalType = new Dict<Uid, Uid>();
+		[Macro("global")]
+		public static Uid defineGlobal(Uid expr){
+			var gen = Interact.Current;
+			var exprs = gen.SubExpressions.Get (expr);
+			if (exprs.Count != 3)
+				throw new CompilerError (expr, "Invalid number of arguments. Expected 2, got {0}.", exprs.Count);
+			if (Interact.IsDryRun)
+				return gen.VoidType;
+			
+			Uid type = gen.CompileSubExpression (exprs [2]);
+			Uid nameid = exprs [1];
+			var id = Uid.CreateNew ();
+			var name = (string)gen.ConstantValue.Get (exprs [1]);
+
+			if (gen.globals.Get (id)?.FieldType == gen.GetCSType (type)){
+				Interact.Emit (OpCodes.Stsfld, gen.globals.Get (id));
+				return gen.VoidType; // nothing to do here then.
+			}
+			var field = gen.DefineGlobal (name, gen.GetCSType (type));
+			gen.globals[id] = field;
+			gen.globalName [id] = name;
+			gen.globalType [id] = type;
+			Interact.Emit (OpCodes.Stsfld, field);
+			return gen.VoidType;
+		}
+
+		[Macro("glob", nameof(globSpec))]
+		public static Uid getGlobal(Uid expr){
+			// (set (glob x) 5)
+			// (print (glob x))
+			var gen = Interact.Current;
+			Uid valueExpr = gen.SetExprs.Get(expr);
+			var s = gen.SubExpressions.Get (expr);
+			FieldInfo field = gen.globals[s[1]];
+			Uid type = gen.globalType.Get (s[1]);
+			if (valueExpr != Uid.Default) {
+				Uid retType = Interact.CallOn (valueExpr);
+				if (retType != type)
+					throw new CompilerError (expr, "Types does not match!");
+				Interact.Emit (OpCodes.Dup);
+				Interact.Emit (OpCodes.Stsfld, field);
+				gen.SetExprs.Remove (expr);
+			} else {
+				Interact.Emit (OpCodes.Ldsfld, field);
+			}
+			return type;
+		}
+
+		public static Uid globSpec(Uid expr, int index, string suggestion){
+			if (index > 1)
+				throw new CompilerError (expr, "Only 2 arguments to glob are supported");
+			var gen = Interact.Current;
+			var s = gen.SubExpressions.Get (expr);
+			if (index == 1)
+				return gen.globalName.FirstOrDefault (x => x.Value == suggestion).Key;
+			return Uid.Default;
 		}
 
 		StackLocal<Dict<Uid, LocalSymData>> localSymbols = new StackLocal<Dict<Uid, LocalSymData>> (new Dict<Uid, LocalSymData> ());
@@ -956,7 +1037,7 @@ namespace PhotonIl
         }
 		Dict<string, int> loadedBins = new Dict<string, int>();
 		static int assemblyStoreId = 1;
-		public void Load(string filepath){
+		public void Load(string filepath, bool import = false){
 			
 			byte[] bytedata = null;
 			using (var str = new GZipStream(File.OpenRead (filepath), CompressionMode.Decompress,false)) {
@@ -979,7 +1060,7 @@ namespace PhotonIl
 				}
 
 
-				loadedBins [filepath] = assemblyStoreId++;
+				loadedBins [filepath] = import ? 0 : assemblyStoreId++;
 
 				Dict<int,int> translation = new Dict<int, int> ();
 				foreach (var item in assemblyloadIds) {
@@ -1011,11 +1092,12 @@ namespace PhotonIl
 			Load (path);
 		}
 
-		public void AddFunctionInvocation(Type objType, string FunctionName){
+		public void AddFunctionInvocation(Type objType, string FunctionName, string alias = null){
+			alias = alias ?? FunctionName;
 			var method = objType.GetMethod (FunctionName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
 			Assert.IsTrue (method != null);
 			FunctionInvocation [Sym (FunctionName)] = method;
-			this.FunctionName [Sym (FunctionName)] = FunctionName;
+			this.FunctionName [Sym (FunctionName)] = alias;
 			var ret = method.ReturnType;
 			var pret = getPhotonType (ret);
 			this.FunctionReturnType.Add (Sym (FunctionName), pret);

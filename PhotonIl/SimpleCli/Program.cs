@@ -21,10 +21,54 @@ namespace SimpleCli
 			gen.Load (filepath);
 		}
 
+		public static void load_edit(string filepath){
+			gen.Load (filepath, import: true);
+		}
+
+		// starts editing a specfic funcion
+		public static void print_functions(string funcname){
+			foreach (var x in gen.FunctionName)
+				if (x.Value == funcname)
+					Console.WriteLine (x.Key);
+		}
+
+		public static Uid get_uid(string funcname, int index){
+			foreach (var x in gen.FunctionName)
+				if (x.Value == funcname && index-- == 0)
+					return x.Key;
+			return Uid.Default;
+
+		}
+
+		public static void edit(Uid func){
+			var defun = gen.MacroNames.First (x => x.Value == "defun").Key;
+			Uid body = gen.GetFunctionBody (func);
+			Uid def = Uid.Default;
+			foreach (var subexpr in gen.SubExpressions.Entries) {
+				if (subexpr.Value.Count != 4 || subexpr.Value[0] != defun || subexpr.Value[3] != body)
+					continue;
+				def = subexpr.Key;
+				break;
+			}
+			def = gen.functionBody.First(x => x.Value == def).Key;
+			if (def == Uid.Default)
+				throw new Exception (string.Format("Cannot find function definition for {0}", func));
+			cb = new CodeBuilder (gen, def);
+		}
+
+		public static Uid sym1(string name){
+			return gen.Sym (name);
+		}
+
+		public static Uid sym2(){
+			return Uid.CreateNew ();
+		}
+
 		static IlGen gen;
+		static CodeBuilder cb;
 
 		public static void Main (string[] args)
-		{
+		{	
 			Uid errorExpr = Uid.Default;
 			Console.CursorVisible = true;
 			Console.TreatControlCAsInput = true;
@@ -40,11 +84,18 @@ namespace SimpleCli
 				gen2.AddFunctionInvocation(typeof(MainClass), nameof(exit));
 				gen2.AddFunctionInvocation(typeof(MainClass), nameof(save));
 				gen2.AddFunctionInvocation(typeof(MainClass), nameof(load));
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (load_edit), "load edit");
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (edit));
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (print_functions), "print functions");
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (get_uid), "get uid");
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (sym1), "sym");
+				gen2.AddFunctionInvocation (typeof(MainClass), nameof (sym2), "sym");
+
 				gen2.Save ("SimpleCli.bin");
 			}
 			gen.LoadReference ("SimpleCli.bin");
 
-			var cb = new CodeBuilder (gen);
+			cb = new CodeBuilder (gen);
 			cb.PushArgument ();
 
 			while (true) {
