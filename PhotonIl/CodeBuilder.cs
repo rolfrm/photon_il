@@ -128,9 +128,10 @@ namespace PhotonIl
 
 			var spec = gen.GetMacroSpec (FirstExpression);
 			if (spec != null) {
-                var result = gen.InvokeMacroSpec(gen.GetFunctionBody(Function), SelectedExpression, SelectedIndex, str);
-				if (result != Uid.Default) {
-					yield return result;
+                var results = gen.InvokeMacroSpec(gen.GetFunctionBody(Function), SelectedExpression, SelectedIndex, str);
+				if (results.Length > 0) {
+					foreach(var item in results)
+						yield return item;
 					yield break;
 				}
 			}
@@ -315,6 +316,14 @@ namespace PhotonIl
 				return gen.MacroNames [uid];
 			if (gen.type_name.ContainsKey (uid))
 				return gen.type_name.Get (uid);
+			var args = new object[]{ uid };
+			using (Interact.Push (gen, null)) {
+				foreach (var printer in gen.Printers) {
+					var str = printer.Value.Invoke (null, args) as string;
+					if (str != null)
+						return str;
+				}
+			}
 			return "";//throw new Exception ("Cannot tostring type");
 
 		}

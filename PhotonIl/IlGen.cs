@@ -35,9 +35,11 @@ namespace PhotonIl
 	public class MacroAttribute : Attribute{
 		public string Name;
 		public string SpecName;
-		public MacroAttribute(string name, string specName = null){
+		public string Printer;
+		public MacroAttribute(string name, string specName = null, string printer = null){
 			Name = name;
 			SpecName = specName;
+			Printer = printer;
 		}
 	}
 
@@ -142,7 +144,8 @@ namespace PhotonIl
 			[ProtoMember(12)]
 			public Dict<Uid, Tuple<string, string>> MacroSpecs;
 
-
+			[ProtoMember(13)]
+			public Dict<Uid, Tuple<string, string>> Printers;
 		};
 
 		public void Load(IlGen gen){
@@ -196,6 +199,11 @@ namespace PhotonIl
 					Type basetype = (asm == null ? Type.GetType (x.Value.Item1) : (asm.GetType (x.Value.Item1) ?? Type.GetType (x.Value.Item1)));
 					macroSpecs[x.Key] = basetype.GetMethod (x.Value.Item2, BindingFlags.Static | BindingFlags.Public);
 					}
+			if(savable.Printers != null)
+				foreach(var x in savable.Printers){
+					Type basetype = (asm == null ? Type.GetType (x.Value.Item1) : (asm.GetType (x.Value.Item1) ?? Type.GetType (x.Value.Item1)));
+					Printers[x.Key] = basetype.GetMethod (x.Value.Item2, BindingFlags.Static | BindingFlags.Public);
+				}
 			
 		}
 		public object Save(){
@@ -212,7 +220,9 @@ namespace PhotonIl
 				FunctionArguments = this.FunctionArguments.LocalOnly(),
 				ArgumentName = this.ArgumentName.LocalOnly(),
 				ArgumentType = this.ArgumentType.LocalOnly(),
-				MacroSpecs = this.macroSpecs.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name))
+				MacroSpecs = this.macroSpecs.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name)),
+				Printers = this.Printers.LocalOnly().ConvertValues(x => Tuple.Create(x.DeclaringType.AssemblyQualifiedName, x.Name)),
+
 			};
 
 		}
@@ -286,6 +296,8 @@ namespace PhotonIl
 				MacroNames.Add (id, attr.Name);
 				if (attr.SpecName != null)
 					AddMacroSpec (id, this.GetType (), attr.SpecName);
+				if (attr.Printer != null)
+					AddPrinter (id, this.GetType (), attr.Printer);
 			}
 
 			GetModule<BaseFunctions> ();
@@ -821,10 +833,6 @@ namespace PhotonIl
 			public Uid TypeId;
 		}
 
-		public void DefineGlobal(Uid id, object value){
-
-		}
-
 		public FieldInfo DefineGlobal(string name, Type type){
 			var module = getDynamicModule ();
 			var tb = module.DefineType($"MyType{typeid++}", TypeAttributes.Class | TypeAttributes.Public);
@@ -836,7 +844,7 @@ namespace PhotonIl
 		Dict<Uid, FieldInfo> globals = new Dict<Uid, FieldInfo>();
 		Dict<Uid, string> globalName = new Dict<Uid, string>();
 		Dict<Uid, Uid> globalType = new Dict<Uid, Uid>();
-		[Macro("global")]
+		[Macro("global", printer: nameof(printGlobal))]
 		public static Uid defineGlobal(Uid expr){
 			var gen = Interact.Current;
 			var exprs = gen.SubExpressions.Get (expr);
@@ -850,15 +858,14 @@ namespace PhotonIl
 			var id = Uid.CreateNew ();
 			var name = (string)gen.ConstantValue.Get (exprs [1]);
 
-			if (gen.globals.Get (id)?.FieldType == gen.GetCSType (type)){
-				Interact.Emit (OpCodes.Stsfld, gen.globals.Get (id));
-				return gen.VoidType; // nothing to do here then.
+			if (gen.globals.Get (id)?.FieldType != gen.GetCSType (type)){
+				var field = gen.DefineGlobal (name, gen.GetCSType (type));
+				gen.globals[id] = field;
+				gen.globalName [id] = name;
+				gen.globalType [id] = type;
 			}
-			var field = gen.DefineGlobal (name, gen.GetCSType (type));
-			gen.globals[id] = field;
-			gen.globalName [id] = name;
-			gen.globalType [id] = type;
-			Interact.Emit (OpCodes.Stsfld, field);
+
+			Interact.Emit (OpCodes.Stsfld, gen.globals.Get (id));
 			return gen.VoidType;
 		}
 
@@ -884,14 +891,19 @@ namespace PhotonIl
 			return type;
 		}
 
-		public static Uid globSpec(Uid expr, int index, string suggestion){
+		public static string printGlobal(Uid id){
+			return Interact.Current.globalName.Get (id);
+		}
+
+		public static Uid[] globSpec(Uid expr, int index, string suggestion){
 			if (index > 1)
 				throw new CompilerError (expr, "Only 2 arguments to glob are supported");
 			var gen = Interact.Current;
 			var s = gen.SubExpressions.Get (expr);
-			if (index == 1)
-				return gen.globalName.FirstOrDefault (x => x.Value == suggestion).Key;
-			return Uid.Default;
+
+			if (index == 1 && suggestion != null)
+				return gen.globalName.Where(x => x.Value.StartsWith(suggestion)).Select(x => x.Key).ToArray();
+			return new Uid[0];
 		}
 
 		StackLocal<Dict<Uid, LocalSymData>> localSymbols = new StackLocal<Dict<Uid, LocalSymData>> (new Dict<Uid, LocalSymData> ());
@@ -959,22 +971,43 @@ namespace PhotonIl
 			macroSpecs.Add (macro, func);
 		}
 
+		public void AddPrinter(Uid macro, Type declaringType, string methodName){
+			var m = declaringType.GetMethod (methodName, BindingFlags.Static | BindingFlags.Public);
+			Assert.IsTrue (m != null);
+			AddPrinter (macro, m);
+		}
+
+		public void AddPrinter(Uid macro,MethodInfo method){
+			Printers[macro] = method;
+		}
+
+		public Dict<Uid,MethodInfo> Printers = new Dict<Uid, MethodInfo>();
+
         event Func<Uid, bool> compileIntercept;
 
-        public Uid InvokeMacroSpec(Uid baseexpr, Uid expr, int index, string str)
+        public Uid[] InvokeMacroSpec(Uid baseexpr, Uid expr, int index, string str)
         {
             var sub = SubExpressions.Get(expr);
             if ( 0 == sub.Count || false == macroSpecs.ContainsKey(sub[0]))
-                return Uid.Default;
+				return new Uid[]{};
             var spec = macroSpecs.Get(sub[0]);
-            Uid result = Uid.Default;
+			Uid[] result = new Uid[0];
             Func<Uid, bool> checkf = x =>
             {
                 if (x == expr)
                 {
                     try
                     {
-                        result = (Uid)spec.Invoke(null, new object[] { expr, index, str });
+                        object result2 = spec.Invoke(null, new object[] { expr, index, str });
+						if(result2 is Uid[]){
+							result = (Uid[]) result2;
+						}
+						else if (result2 is Uid && ((Uid) result2) != Uid.Default){
+							
+							result = new []{(Uid)result2};
+						}else{
+							throw new CompilerError(baseexpr, "Unsupported type {0}.", result2?.GetType());
+						}
                     }
                     catch { }
                     return false;
