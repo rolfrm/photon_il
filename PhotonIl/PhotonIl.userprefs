@@ -1,0 +1,39 @@
+﻿<Properties RefactoringSettings.EnableRefactorings="True" StartupItem="PhotonIl2/PhotonIl2.csproj">
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Run" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="PhotonIl2/LispInterpreter.cs">
+    <Files>
+      <File FileName="PhotonIl2/LispParser.cs" Line="139" Column="3" />
+      <File FileName="PhotonIl2/Program.cs" Line="1" Column="1" />
+      <File FileName="Il2Test/main.il" Line="1" Column="1" />
+      <File FileName="Il2Test/Il2Test.ilproj" Line="1" Column="1" />
+      <File FileName="PhotonIl2/LispInterpreter.cs" Line="17" Column="2" />
+      <File FileName="IlGen.cs" Line="1" Column="1" />
+      <File FileName="IlGenTest.cs" Line="1" Column="1" />
+      <File FileName="PhotonIl2/InheritableThreadLocal.cs" Line="1" Column="1" />
+      <File FileName="PhotonIl2/ILispMethod.cs" Line="1" Column="1" />
+      <File FileName="PhotonIl2/IVariable.cs" Line="36" Column="2" />
+      <File FileName="PhotonIl2/LispCompiler.cs" Line="44" Column="35" NotebookId="1" />
+      <File FileName="PhotonIl2/example.lisp" Line="1" Column="1" NotebookId="1" />
+    </Files>
+    <Pads>
+      <Pad Id="ProjectPad">
+        <State name="__root__">
+          <Node name="PhotonIl" expanded="True">
+            <Node name="PhotonIl2" expanded="True">
+              <Node name="LispInterpreter.cs" selected="True" />
+            </Node>
+          </Node>
+        </State>
+      </Pad>
+    </Pads>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore>
+      <Catchpoint exceptionName="System.Exception" includeSubclasses="True" />
+      <Breakpoint file="/home/rolf.code/photon_il/PhotonIl/Program.cs" line="35" column="1" />
+      <Breakpoint file="/home/rolf.code/photon_il/PhotonIl/Il2Test/main.il" line="14" column="1" />
+      <Breakpoint file="/home/rolf.code/photon_il/PhotonIl/PhotonIl2/Program.cs" line="34" column="1" />
+    </BreakpointStore>
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>

@@ -9,7 +9,7 @@
     <AssemblyName>PhotonIl</AssemblyName>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Run|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

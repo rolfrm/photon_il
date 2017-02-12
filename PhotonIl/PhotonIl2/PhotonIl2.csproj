@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Run</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{F3EE5467-EDD5-4FB4-8C7C-C9E0150AD887}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PhotonIl2</RootNamespace>
+    <AssemblyName>PhotonIl2</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Run|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Run</OutputPath>
+    <WarningLevel>4</WarningLevel>
+    <Externalconsole>true</Externalconsole>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="LispParser.cs" />
+    <Compile Include="LispInterpreter.cs" />
+    <Compile Include="LispCompiler.cs" />
+    <Compile Include="InheritableThreadLocal.cs" />
+    <Compile Include="ILispMethod.cs" />
+    <Compile Include="CsMethod.cs" />
+    <Compile Include="LispMethod.cs" />
+    <Compile Include="IVariable.cs" />
+    <Compile Include="Scope.cs" />
+    <Compile Include="LispContext.cs" />
+    <Compile Include="BaseFunctions.cs" />
+    <Compile Include="PhotonExt.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <None Include="example.lisp">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PhotonIl.csproj">
+      <Project>{1B012597-5A4E-435D-9C30-49F4F96126AE}</Project>
+      <Name>PhotonIl</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
